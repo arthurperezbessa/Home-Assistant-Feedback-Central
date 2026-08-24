@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home360 Feedback Central",
+        "description": "Central hub that receives client reports. The webhook is created automatically. You can set the push service now or later.",
+        "data": {
+          "notify_service": "Notification service (e.g. notify.mobile_app_your_phone)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "The central hub is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home360 Feedback Central",
+        "menu_options": {
+          "add_client": "Add client",
+          "remove_client": "Remove client",
+          "notify": "Change push service",
+          "info": "Show URL and tokens"
+        }
+      },
+      "add_client": {
+        "title": "Add client",
+        "description": "A token will be generated and shown in the notifications, together with the webhook URL, so you can set up the client HA integration.",
+        "data": {
+          "client_id": "Client id (e.g. casa_silva)"
+        }
+      },
+      "remove_client": {
+        "title": "Remove client",
+        "description": "Select who to remove. Their token stops being accepted immediately.",
+        "data": {
+          "clients": "Clients"
+        }
+      },
+      "notify": {
+        "title": "Push service",
+        "data": {
+          "notify_service": "Notification service (e.g. notify.mobile_app_your_phone)"
+        }
+      },
+      "info": {
+        "title": "Configuration data",
+        "description": "{info}"
+      }
+    },
+    "error": {
+      "invalid_client_id": "Enter a valid client id.",
+      "client_exists": "A client with that id already exists."
+    },
+    "abort": {
+      "no_clients": "No clients registered yet."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ultimo_report": { "name": "Last report" }
+    }
+  }
+}

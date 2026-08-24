@@ -1,0 +1,13 @@
+{
+  "domain": "home360_feedback_central",
+  "name": "Home360 Feedback Central",
+  "version": "0.1.0",
+  "config_flow": true,
+  "dependencies": ["webhook", "logbook"],
+  "documentation": "https://github.com/home360/Home-Assistant-Feedback-Central",
+  "issue_tracker": "https://github.com/home360/Home-Assistant-Feedback-Central/issues",
+  "codeowners": ["@home360"],
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "requirements": []
+}

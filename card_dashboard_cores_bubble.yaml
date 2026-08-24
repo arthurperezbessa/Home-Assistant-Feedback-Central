@@ -1,0 +1,58 @@
+# ============================================================================
+# Card do CENTRAL com cor por tipo de report.
+# Troque 'sensor.feedback_marzzano' pelo sensor do cliente desejado.
+#
+# Legenda de cores (categoria → cor):
+#   🔴 Erros Gerais         🟣 Áudio e Vídeo      🟡 Iluminação
+#   🔵 Ar Condicionado      🟤 Cortinas           🟢 Automações ou Cenas
+#   🟠 Melhorias
+# ============================================================================
+
+
+# ── OPÇÃO A: LISTA COLORIDA (markdown) — funciona em qualquer HA ─────────────
+# O markdown inteiro é montado numa ÚNICA expressão {{ }} com \n explícito,
+# pra a dobra do YAML não grudar o título na primeira mensagem.
+type: markdown
+content: >
+  {% set sensor = 'sensor.feedback_marzzano' %}
+  {% set cores = {
+    'Erros Gerais': '🔴', 'Áudio e Vídeo': '🟣', 'Iluminação': '🟡',
+    'Ar Condicionado': '🔵', 'Cortinas': '🟤', 'Automações ou Cenas': '🟢',
+    'Melhorias': '🟠'
+  } %}
+  {% set msgs = state_attr(sensor, 'ultimas_mensagens') or [] %}
+  {% set l = namespace(v='') %}
+  {% for m in msgs %}
+  {% set l.v = l.v ~ '\n- ' ~ cores.get(m.categoria, '⚪') ~ ' **' ~ m.categoria
+    ~ '** — ' ~ m.texto ~ ' <small>'
+    ~ (as_timestamp(m.em) | timestamp_custom('%d/%m %H:%M'))
+    ~ (' · ' ~ m.local if m.local else '') ~ '</small>' %}
+  {% endfor %}
+  {{ '### 📣 ' ~ state_attr(sensor, 'cliente') ~ ' · ' ~ states(sensor) ~ ' reports\n'
+     ~ (l.v if msgs else '\n_Nenhuma mensagem ainda._') }}
+
+
+# ── OPÇÃO B: TILE Bubble Card com ÍCONE colorido pela última categoria ───────
+# Requer card-mod (já vem no Lovelace Minimalist). Cole como OUTRO card.
+#
+# type: custom:bubble-card
+# card_type: button
+# button_type: name
+# entity: sensor.feedback_marzzano
+# name: marzzano
+# icon: mdi:message-alert
+# show_state: true
+# tap_action:
+#   action: navigate
+#   navigation_path: "#marzzano"
+# card_mod:
+#   style: |
+#     {% set c = state_attr('sensor.feedback_marzzano','ultima_categoria') %}
+#     {% set map = {
+#       'Erros Gerais':'#f44336','Áudio e Vídeo':'#9c27b0','Iluminação':'#ffb300',
+#       'Ar Condicionado':'#2196f3','Cortinas':'#795548','Automações ou Cenas':'#4caf50',
+#       'Melhorias':'#ff9800'} %}
+#     .bubble-icon-container {
+#       background-color: {{ map.get(c, '#607d8b') }}33 !important;
+#     }
+#     ha-icon { color: {{ map.get(c, '#607d8b') }} !important; }

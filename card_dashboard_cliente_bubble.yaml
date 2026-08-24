@@ -1,0 +1,52 @@
+# ============================================================================
+# Card POR CLIENTE para o dashboard do HA CENTRAL (Bubble Card).
+# Duas peças, na MESMA view. Duplique o par por cliente, trocando:
+#   - o entity  (sensor.feedback_<cliente>)
+#   - o hash    (#<cliente>)
+#   - o name
+#
+# Descubra o entity_id real em Configurações > Dispositivos > "Feedback <cliente>".
+# ============================================================================
+
+
+# ── PEÇA 1: TILE (mostra o total; toca e abre o popup) ──────────────────────
+type: custom:bubble-card
+card_type: button
+button_type: name
+entity: sensor.feedback_marzzano
+name: marzzano
+icon: mdi:message-alert
+show_state: true
+tap_action:
+  action: navigate
+  navigation_path: "#marzzano"
+sub_button:
+  - name: Última
+    entity: sensor.feedback_marzzano
+    attribute: ultima_categoria
+    show_attribute: true
+    show_background: false
+
+
+# ── PEÇA 2: POPUP (últimas 10 mensagens do cliente) ─────────────────────────
+# Cole como OUTRO card na mesma view.
+#
+# type: vertical-stack
+# cards:
+#   - type: custom:bubble-card
+#     card_type: pop-up
+#     hash: "#marzzano"
+#     name: Feedback — marzzano
+#     icon: mdi:message-alert
+#   - type: markdown
+#     content: >
+#       {% set msgs = state_attr('sensor.feedback_marzzano', 'ultimas_mensagens') %}
+#       {% if msgs %}
+#       {% for m in msgs %}
+#       **{{ m.categoria }}** — {{ m.texto }}
+#       <small>{{ as_timestamp(m.em) | timestamp_custom('%d/%m %H:%M') }}{% if m.local %} · {{ m.local }}{% endif %}</small>
+#
+#       {% endfor %}
+#       {% else %}
+#       _Nenhuma mensagem ainda._
+#       {% endif %}

@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home360 Feedback Central",
+        "description": "Central de recebimento dos reports dos clientes. O webhook é criado automaticamente. Você pode definir o serviço de push agora ou depois.",
+        "data": {
+          "notify_service": "Serviço de notificação (ex.: notify.mobile_app_seu_celular)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "A central já está configurada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home360 Feedback Central",
+        "menu_options": {
+          "add_client": "Adicionar cliente",
+          "remove_client": "Remover cliente",
+          "notify": "Alterar serviço de push",
+          "info": "Ver URL e tokens"
+        }
+      },
+      "add_client": {
+        "title": "Adicionar cliente",
+        "description": "Um token será gerado e mostrado nas notificações, junto com a URL do webhook, para você configurar a integração no HA do cliente.",
+        "data": {
+          "client_id": "Identificação do cliente (ex.: casa_silva)"
+        }
+      },
+      "remove_client": {
+        "title": "Remover cliente",
+        "description": "Selecione quem remover. O token deixa de ser aceito imediatamente.",
+        "data": {
+          "clients": "Clientes"
+        }
+      },
+      "notify": {
+        "title": "Serviço de push",
+        "data": {
+          "notify_service": "Serviço de notificação (ex.: notify.mobile_app_seu_celular)"
+        }
+      },
+      "info": {
+        "title": "Dados de configuração",
+        "description": "{info}"
+      }
+    },
+    "error": {
+      "invalid_client_id": "Informe uma identificação de cliente válida.",
+      "client_exists": "Já existe um cliente com essa identificação."
+    },
+    "abort": {
+      "no_clients": "Nenhum cliente cadastrado ainda."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "ultimo_report": { "name": "Último report" }
+    }
+  }
+}
