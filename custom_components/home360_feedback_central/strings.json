@@ -59,7 +59,8 @@
   },
   "entity": {
     "sensor": {
-      "ultimo_report": { "name": "Último report" }
+      "ultimo_report": { "name": "Último report" },
+      "monitoramento": { "name": "Monitoramento" }
     }
   }
 }

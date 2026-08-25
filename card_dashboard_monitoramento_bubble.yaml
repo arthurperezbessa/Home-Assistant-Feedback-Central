@@ -1,0 +1,21 @@
+# ============================================================================
+# Card do CENTRAL: alertas de monitoramento (Entity Monitor) por cliente.
+# Troque 'sensor.feedback_marzzano_monitoramento' pelo sensor do cliente.
+#
+# Cor por tipo de alerta (kind):
+#   🟡 n1 (1ª queda)   🟠 n2 (offline acumulado)   🔴 n3 (relatório diário)
+# ============================================================================
+
+type: markdown
+content: >
+  {% set sensor = 'sensor.feedback_marzzano_monitoramento' %}
+  {% set cor = {'n1': '🟡', 'n2': '🟠', 'n3': '🔴', 'test': '⚪'} %}
+  {% set alertas = state_attr(sensor, 'ultimos_alertas') or [] %}
+  {% set l = namespace(v='') %}
+  {% for a in alertas %}
+  {% set l.v = l.v ~ '\n- ' ~ cor.get(a.kind, '⚪') ~ ' **' ~ a.integracao
+    ~ '** — ' ~ a.mensagem ~ ' <small>'
+    ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
+  {% endfor %}
+  {{ '### 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' · ' ~ states(sensor) ~ ' alertas\n'
+     ~ (l.v if alertas else '\n_Sem alertas de monitoramento._') }}

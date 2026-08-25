@@ -28,9 +28,11 @@ from .const import (
     CONF_NOTIFY_SERVICE,
     CONF_WEBHOOK_ID,
     DOMAIN,
+    EVENT_MONITOR,
     EVENT_REPORT,
     MAX_TEXT_LENGTH,
     TOKEN_HEADER,
+    signal_new_monitor,
     signal_new_report,
 )
 
@@ -115,6 +117,11 @@ async def _async_handle_report(
         )
         return
 
+    # Roteia por tipo: "monitor" (Entity Monitor) ou feedback (padrão).
+    if str(data.get("tipo", "")).strip() == "monitor":
+        await _async_handle_monitor(hass, entry, data, cliente)
+        return
+
     categoria = str(data.get("categoria", "")).strip()
     if categoria not in CATEGORIES:
         categoria = "Outro"
@@ -166,6 +173,60 @@ async def _async_handle_report(
 
     # 5) Atualiza o sensor de "último report" ---------------------------------
     async_dispatcher_send(hass, signal_new_report(entry.entry_id), report)
+
+
+async def _async_handle_monitor(
+    hass: HomeAssistant, entry: ConfigEntry, data: dict, cliente: str
+) -> None:
+    """Processa um alerta de monitoramento (Entity Monitor).
+
+    Sem push nem notificação persistente — o canal é o dashboard/sensor.
+    """
+    agora = dt_util.now()
+    kind = str(data.get("kind", "")).strip()[:10]
+    integracao = str(data.get("integracao", "")).strip()[:100]
+    entidades = data.get("entidades")
+    if not isinstance(entidades, list):
+        entidades = []
+    entidades = [str(e)[:100] for e in entidades[:10]]
+    mensagem = (
+        str(data.get("mensagem", "")).strip()[:MAX_TEXT_LENGTH] or "(sem mensagem)"
+    )
+    titulo = str(data.get("titulo", "")).strip()[:200]
+    try:
+        total = int(data.get("total_afetadas"))
+    except (TypeError, ValueError):
+        total = len(entidades)
+
+    alerta = {
+        "cliente": cliente,
+        "kind": kind,
+        "integracao": integracao,
+        "entidades": entidades,
+        "mensagem": mensagem,
+        "titulo": titulo,
+        "total_afetadas": total,
+        "em": agora.isoformat(timespec="seconds"),
+    }
+
+    _LOGGER.info(
+        "Home360 Monitor: alerta %s de %s (%s)", kind, cliente, integracao
+    )
+
+    # Logbook (histórico). Sem push, sem persistent notification.
+    if hass.services.has_service("logbook", "log"):
+        await hass.services.async_call(
+            "logbook",
+            "log",
+            {
+                "name": f"Monitor · {cliente}",
+                "message": f"[{kind.upper()}] {integracao}: {mensagem}",
+            },
+            blocking=False,
+        )
+
+    hass.bus.async_fire(EVENT_MONITOR, alerta)
+    async_dispatcher_send(hass, signal_new_monitor(entry.entry_id), alerta)
 
 
 async def _async_push(

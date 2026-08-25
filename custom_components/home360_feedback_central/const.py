@@ -31,5 +31,14 @@ EVENT_REPORT = f"{DOMAIN}_report"
 
 
 def signal_new_report(entry_id: str) -> str:
-    """Sinal (dispatcher) por config entry, para atualizar o sensor."""
+    """Sinal (dispatcher) por config entry, para o sensor de feedback."""
     return f"{DOMAIN}_report_{entry_id}"
+
+
+def signal_new_monitor(entry_id: str) -> str:
+    """Sinal (dispatcher) por config entry, para o sensor de monitoramento."""
+    return f"{DOMAIN}_monitor_{entry_id}"
+
+
+# Evento disparado a cada alerta de monitoramento válido.
+EVENT_MONITOR = f"{DOMAIN}_monitor"

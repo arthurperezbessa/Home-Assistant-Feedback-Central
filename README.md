@@ -49,12 +49,30 @@ Outras opções do menu:
 
 ## O que a integração cria
 
+Para **cada cliente cadastrado**, um dispositivo "Feedback `<cliente>`" com duas entidades:
+
 | Entidade | Para quê |
 |----------|----------|
-| `sensor.home360_feedback_central_ultimo_report` | Estado = total de reports; atributos = cliente, categoria, texto, local e data do último |
+| `sensor.feedback_<cliente>` | Feedback: estado = total de reports; atributos = últimas 10 mensagens (categoria, texto, local, data) |
+| `sensor.feedback_<cliente>_monitoramento` | Monitoramento: estado = total de alertas; atributos = últimos 10 alertas N1/N2/N3 (kind, integração, entidades, mensagem, data) |
 
-E dispara o evento **`home360_feedback_central_report`** (com `cliente`, `categoria`,
-`texto`, `local`, `em`) para você montar automações (ex.: mandar pra um grupo de Telegram).
+E dispara dois eventos para automações:
+- **`home360_feedback_central_report`** (`cliente`, `categoria`, `texto`, `local`, `em`) — feedback.
+- **`home360_feedback_central_monitor`** (`cliente`, `kind`, `integracao`, `entidades`, `mensagem`, `em`) — monitoramento.
+
+---
+
+## Monitoramento (Entity Monitor)
+
+Além do feedback dos clientes, o central recebe **alertas de indisponibilidade**
+da integração [Entity Monitor](https://github.com/arthurperezbessa/Entity-Monitor)
+instalada em cada cliente — em vez de notificações no celular, viram um dashboard.
+
+- A Entity Monitor manda cada **N1/N2/N3** para o mesmo webhook, com `tipo: "monitor"`,
+  usando o **mesmo `client_id` e token** daquele cliente.
+- O central valida o token e atualiza o `sensor.feedback_<cliente>_monitoramento`
+  (sem push, sem notificação persistente — o canal é o dashboard).
+- Registra no **logbook** para histórico.
 
 ---
 
@@ -78,4 +96,6 @@ Mesmo modelo da versão em package, agora gerenciado pela UI:
 
 Instale a integração Home360 Feedback num cliente de teste, cadastre-o aqui pelo
 menu **Adicionar cliente**, e mande uma mensagem pelo card. Deve aparecer o ticket,
-o push e o `sensor.home360_feedback_central_ultimo_report` deve incrementar.
+o push e o `sensor.feedback_<cliente>` deve incrementar. Para o monitoramento,
+configure a Entity Monitor daquele cliente com a URL/token e dispare o botão de
+teste — o `sensor.feedback_<cliente>_monitoramento` deve incrementar.
