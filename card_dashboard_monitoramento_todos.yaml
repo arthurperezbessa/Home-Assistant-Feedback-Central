@@ -1,0 +1,57 @@
+# ============================================================================
+# VIEW COMPLETA de monitoramento — TODOS os clientes, automático.
+# Novos clientes aparecem sozinhos (varre sensor.feedback_*_monitoring).
+#
+# Cor por kind: 🟡 n1 · 🟠 n2 · 🔴 n3 · 🔵 snapshot · ⚪ test
+#
+# OBS: entity_id em inglês (_monitoring, central em inglês). Se o central
+# estiver em português, troque '_monitoring' por '_monitoramento' abaixo.
+# ============================================================================
+
+
+# ── PRINCIPAL: painel único que lista todos os clientes (só markdown) ────────
+type: markdown
+content: >
+  {% set cor = {'n1':'🟡','n2':'🟠','n3':'🔴','snapshot':'🔵','test':'⚪'} %}
+  {% set o = namespace(v='# 🖥️ Monitoramento dos clientes\n') %}
+  {% for s in states.sensor
+       if s.entity_id.startswith('sensor.feedback_')
+       and s.entity_id.endswith('_monitoring') %}
+  {% set cliente = s.attributes.get('cliente', s.entity_id) %}
+  {% set alertas = s.attributes.get('ultimos_alertas') or [] %}
+  {% set o.v = o.v ~ '\n### ' ~ cliente ~ ' · ' ~ s.state ~ ' alertas\n' %}
+  {% if alertas %}
+  {% for a in alertas[:5] %}
+  {% set o.v = o.v ~ '\n- ' ~ cor.get(a.kind, '⚪') ~ ' **' ~ a.integracao
+    ~ '** — ' ~ a.mensagem ~ ' <small>'
+    ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
+  {% endfor %}
+  {% set o.v = o.v ~ '\n' %}
+  {% else %}
+  {% set o.v = o.v ~ '\n_Sem alertas._\n' %}
+  {% endif %}
+  {% endfor %}
+  {{ o.v }}
+
+
+# ── ALTERNATIVA: grid de tiles por cliente (requer custom:auto-entities) ─────
+# Cada cliente vira um tile Bubble Card com o total de alertas; novos entram
+# sozinhos. Pode precisar de pequenos ajustes conforme a versão do auto-entities.
+#
+# type: custom:auto-entities
+# card:
+#   type: grid
+#   columns: 2
+#   square: false
+# card_param: cards
+# sort:
+#   method: friendly_name
+# filter:
+#   include:
+#     - entity_id: "sensor.feedback_*_monitoring"
+#       options:
+#         type: custom:bubble-card
+#         card_type: button
+#         button_type: state
+#         show_state: true
+#         icon: mdi:lan-disconnect
