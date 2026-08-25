@@ -12,7 +12,7 @@
 type: markdown
 content: >
   {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
-  {% set cor = {'n1': '🟡', 'n2': '🟠', 'n3': '🔴', 'test': '⚪'} %}
+  {% set cor = {'n1': '🟡', 'n2': '🟠', 'n3': '🔴', 'test': '⚪', 'snapshot': '🔵'} %}
   {% set alertas = state_attr(sensor, 'ultimos_alertas') or [] %}
   {% set l = namespace(v='') %}
   {% for a in alertas %}
