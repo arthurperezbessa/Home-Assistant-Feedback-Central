@@ -1,0 +1,57 @@
+# ============================================================================
+# Card de MONITORAMENTO por cliente (Bubble Card) — só alertas, sem feedback.
+# Duas peças, na MESMA view. Troque nas duas:
+#   - o entity  (sensor.feedback_<cliente>_monitoramento)
+#   - o hash    (#monitor-<cliente>)
+#   - o name
+#
+# Cor por tipo (kind): 🟡 n1 (1ª queda) · 🟠 n2 (acumulado) · 🔴 n3 (relatório)
+#
+# OBS: o entity_id do sensor depende do IDIOMA do HA central quando a entidade
+# foi criada. Central em inglês → "_monitoring" (usado aqui). Em português seria
+# "_monitoramento". Confira o real em Ferramentas de desenvolvedor > Estados.
+# ============================================================================
+
+
+# ── PEÇA 1: TILE (mostra o total de alertas; toca e abre o popup) ────────────
+type: custom:bubble-card
+card_type: button
+button_type: name
+entity: sensor.feedback_marzzano_monitoring
+name: marzzano
+icon: mdi:lan-disconnect
+show_state: true
+tap_action:
+  action: navigate
+  navigation_path: "#monitor-marzzano"
+sub_button:
+  - name: Última
+    entity: sensor.feedback_marzzano_monitoring
+    attribute: ultima_integracao
+    show_attribute: true
+    show_background: false
+
+
+# ── PEÇA 2: POPUP (últimos alertas, coloridos por tipo) ──────────────────────
+# Cole como OUTRO card na mesma view.
+#
+# type: vertical-stack
+# cards:
+#   - type: custom:bubble-card
+#     card_type: pop-up
+#     hash: "#monitor-marzzano"
+#     name: Monitoramento — marzzano
+#     icon: mdi:lan-disconnect
+#   - type: markdown
+#     content: >
+#       {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
+#       {% set cor = {'n1': '🟡', 'n2': '🟠', 'n3': '🔴', 'test': '⚪'} %}
+#       {% set alertas = state_attr(sensor, 'ultimos_alertas') or [] %}
+#       {% set l = namespace(v='') %}
+#       {% for a in alertas %}
+#       {% set l.v = l.v ~ '\n- ' ~ cor.get(a.kind, '⚪') ~ ' **' ~ a.integracao
+#         ~ '** — ' ~ a.mensagem ~ ' <small>'
+#         ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
+#       {% endfor %}
+#       {{ '### 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' · ' ~ states(sensor) ~ ' alertas\n'
+#          ~ (l.v if alertas else '\n_Sem alertas de monitoramento._') }}

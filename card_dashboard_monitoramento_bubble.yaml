@@ -1,14 +1,17 @@
 # ============================================================================
 # Card do CENTRAL: alertas de monitoramento (Entity Monitor) por cliente.
-# Troque 'sensor.feedback_marzzano_monitoramento' pelo sensor do cliente.
+# Troque 'sensor.feedback_marzzano_monitoring' pelo sensor do cliente.
 #
 # Cor por tipo de alerta (kind):
 #   🟡 n1 (1ª queda)   🟠 n2 (offline acumulado)   🔴 n3 (relatório diário)
+#
+# OBS: o entity_id depende do IDIOMA do HA central. Inglês → "_monitoring"
+# (usado aqui); português → "_monitoramento". Confira em Estados.
 # ============================================================================
 
 type: markdown
 content: >
-  {% set sensor = 'sensor.feedback_marzzano_monitoramento' %}
+  {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
   {% set cor = {'n1': '🟡', 'n2': '🟠', 'n3': '🔴', 'test': '⚪'} %}
   {% set alertas = state_attr(sensor, 'ultimos_alertas') or [] %}
   {% set l = namespace(v='') %}
