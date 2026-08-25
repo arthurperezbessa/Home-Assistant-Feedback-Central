@@ -1,57 +1,67 @@
 # ============================================================================
-# VIEW COMPLETA de monitoramento — TODOS os clientes, automático.
-# Novos clientes aparecem sozinhos (varre sensor.feedback_*_monitoring).
+# VIEW de monitoramento para MUITOS clientes (~20). Automático (novos entram).
+# Estratégia: priorizar. Quem tem problema recente vai pro TOPO; quem está OK
+# fica embaixo, em uma linha só. Detalhe fica num 2º card, só dos com alerta.
 #
-# Cor por kind: 🟡 n1 · 🟠 n2 · 🔴 n3 · 🔵 snapshot · ⚪ test
+# "Recente" = último alerta nas últimas 24h (ajuste JANELA_H abaixo).
+# Cor por kind: 🟡 n1 · 🟠 n2 · 🔴 n3 · 🔵 snapshot · 🟢 OK
 #
-# OBS: entity_id em inglês (_monitoring, central em inglês). Se o central
-# estiver em português, troque '_monitoring' por '_monitoramento' abaixo.
+# OBS: entity_id em inglês (_monitoring). Central em português → _monitoramento.
 # ============================================================================
 
 
-# ── PRINCIPAL: painel único que lista todos os clientes (só markdown) ────────
+# ── CARD 1 (principal): visão geral — 1 linha por cliente, pior no topo ──────
 type: markdown
 content: >
-  {% set cor = {'n1':'🟡','n2':'🟠','n3':'🔴','snapshot':'🔵','test':'⚪'} %}
-  {% set o = namespace(v='# 🖥️ Monitoramento dos clientes\n') %}
+  {% set peso = {'n3': 4, 'n2': 3, 'n1': 2, 'snapshot': 1} %}
+  {% set cor = {'n3': '🔴', 'n2': '🟠', 'n1': '🟡', 'snapshot': '🔵'} %}
+  {% set JANELA_H = 24 %}
+  {% set now_ts = as_timestamp(now()) %}
+  {% set ns = namespace(itens=[], alerta=0, total=0) %}
   {% for s in states.sensor
        if s.entity_id.startswith('sensor.feedback_')
        and s.entity_id.endswith('_monitoring') %}
+  {% set ns.total = ns.total + 1 %}
   {% set cliente = s.attributes.get('cliente', s.entity_id) %}
-  {% set alertas = s.attributes.get('ultimos_alertas') or [] %}
-  {% set o.v = o.v ~ '\n### ' ~ cliente ~ ' · ' ~ s.state ~ ' alertas\n' %}
-  {% if alertas %}
-  {% for a in alertas[:5] %}
-  {% set o.v = o.v ~ '\n- ' ~ cor.get(a.kind, '⚪') ~ ' **' ~ a.integracao
-    ~ '** — ' ~ a.mensagem ~ ' <small>'
-    ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
+  {% set kind = s.attributes.get('ultimo_kind') %}
+  {% set ets = as_timestamp(s.attributes.get('ultimo_em'), 0) %}
+  {% set recente = ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in peso %}
+  {% set w = peso.get(kind, 0) if recente else 0 %}
+  {% if recente %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
+  {% set dot = cor.get(kind, '⚪') if recente else '🟢' %}
+  {% set desc = (s.attributes.get('ultima_integracao', '') ~ ' — '
+       ~ s.attributes.get('ultima_mensagem', '')) if recente else 'sem alertas recentes' %}
+  {% set linha = dot ~ ' **' ~ cliente ~ '** · ' ~ desc %}
+  {% set ns.itens = ns.itens + [{'ordem': (9 - w) ~ '_' ~ cliente, 'linha': linha}] %}
   {% endfor %}
-  {% set o.v = o.v ~ '\n' %}
-  {% else %}
-  {% set o.v = o.v ~ '\n_Sem alertas._\n' %}
-  {% endif %}
-  {% endfor %}
-  {{ o.v }}
+  {% set corpo = ns.itens | sort(attribute='ordem') | map(attribute='linha') | join('\n- ') %}
+  {{ '# 🖥️ Monitoramento · ' ~ (ns.total - ns.alerta) ~ '/' ~ ns.total ~ ' OK'
+     ~ ('  ·  ⚠️ ' ~ ns.alerta ~ ' com alerta' if ns.alerta else '') ~ '\n\n- ' ~ corpo }}
 
 
-# ── ALTERNATIVA: grid de tiles por cliente (requer custom:auto-entities) ─────
-# Cada cliente vira um tile Bubble Card com o total de alertas; novos entram
-# sozinhos. Pode precisar de pequenos ajustes conforme a versão do auto-entities.
+# ── CARD 2 (detalhe): só clientes COM alerta recente, com as últimas mensagens ─
+# Cole como OUTRO card, abaixo do Card 1.
 #
-# type: custom:auto-entities
-# card:
-#   type: grid
-#   columns: 2
-#   square: false
-# card_param: cards
-# sort:
-#   method: friendly_name
-# filter:
-#   include:
-#     - entity_id: "sensor.feedback_*_monitoring"
-#       options:
-#         type: custom:bubble-card
-#         card_type: button
-#         button_type: state
-#         show_state: true
-#         icon: mdi:lan-disconnect
+# type: markdown
+# content: >
+#   {% set cor = {'n1':'🟡','n2':'🟠','n3':'🔴','snapshot':'🔵','test':'⚪'} %}
+#   {% set JANELA_H = 24 %}
+#   {% set now_ts = as_timestamp(now()) %}
+#   {% set o = namespace(v='') %}
+#   {% for s in states.sensor
+#        if s.entity_id.startswith('sensor.feedback_')
+#        and s.entity_id.endswith('_monitoring') %}
+#   {% set ets = as_timestamp(s.attributes.get('ultimo_em'), 0) %}
+#   {% set kind = s.attributes.get('ultimo_kind') %}
+#   {% if ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in cor and kind != 'test' %}
+#   {% set cliente = s.attributes.get('cliente', s.entity_id) %}
+#   {% set o.v = o.v ~ '\n### ' ~ cliente ~ '\n' %}
+#   {% for a in (s.attributes.get('ultimos_alertas') or [])[:3] %}
+#   {% set o.v = o.v ~ '\n- ' ~ cor.get(a.kind,'⚪') ~ ' **' ~ a.integracao
+#     ~ '** — ' ~ a.mensagem ~ ' <small>'
+#     ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
+#   {% endfor %}
+#   {% set o.v = o.v ~ '\n' %}
+#   {% endif %}
+#   {% endfor %}
+#   {{ '## ⚠️ Precisam de atenção\n' ~ (o.v if o.v else '\n✅ Nenhum alerta recente.') }}
