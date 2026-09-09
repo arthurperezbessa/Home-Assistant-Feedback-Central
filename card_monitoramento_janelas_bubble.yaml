@@ -1,0 +1,29 @@
+# ============================================================================
+# Card do CENTRAL: quedas por período (dia anterior / 7 dias / total) por
+# entidade de um cliente, com flickers separados. Preenche no relatório N3.
+# Troque 'sensor.feedback_marzzano_monitoring' pelo sensor do cliente.
+#
+# OBS: entity_id em inglês (_monitoring). Central em português → _monitoramento.
+# ============================================================================
+
+type: markdown
+content: >
+  {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
+  {% set js = state_attr(sensor, 'janelas') or [] %}
+  {% set o = namespace(v='## 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' — quedas por período\n') %}
+  {% if js %}
+  {% for e in js %}
+  {% set d = e.windows.dia %}
+  {% set w = e.windows.semana %}
+  {% set t = e.windows.total %}
+  {% set o.v = o.v ~ '\n**' ~ e.name ~ '**' %}
+  {% set o.v = o.v ~ '\n- 🔴 quedas — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
+    ~ '), 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt
+    ~ '), total ' ~ t.outages ~ '× (' ~ t.outage_downtime_fmt ~ ')' %}
+  {% set o.v = o.v ~ '\n- ⚡ flickers — ontem ' ~ d.flickers ~ ', 7d ' ~ w.flickers
+    ~ ', total ' ~ t.flickers ~ '\n' %}
+  {% endfor %}
+  {% else %}
+  {% set o.v = o.v ~ '\n_Sem dados por período ainda — chega no relatório diário (N3)._' %}
+  {% endif %}
+  {{ o.v }}

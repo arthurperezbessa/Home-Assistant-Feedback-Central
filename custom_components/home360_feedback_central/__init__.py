@@ -198,6 +198,11 @@ async def _async_handle_monitor(
     except (TypeError, ValueError):
         total = len(entidades)
 
+    janelas = data.get("entidades_janelas")
+    if not isinstance(janelas, list):
+        janelas = []
+    janelas = janelas[:10]
+
     alerta = {
         "cliente": cliente,
         "kind": kind,
@@ -206,6 +211,7 @@ async def _async_handle_monitor(
         "mensagem": mensagem,
         "titulo": titulo,
         "total_afetadas": total,
+        "janelas": janelas,
         "em": agora.isoformat(timespec="seconds"),
     }
 

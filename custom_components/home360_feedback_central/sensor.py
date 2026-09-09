@@ -169,6 +169,7 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{client_id}_monitor"
         self._count = 0
         self._recent: list[dict] = []
+        self._windows: list[dict] = []
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_{client_id}")},
             name=f"Feedback {client_id}",
@@ -187,6 +188,7 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         attrs: dict = {
             "cliente": self._client_id,
             "ultimos_alertas": self._recent,
+            "janelas": self._windows,
         }
         if self._recent:
             ultimo = self._recent[0]
@@ -217,6 +219,9 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
                     for a in recentes
                     if isinstance(a, dict)
                 ][:MAX_RECENT]
+            janelas = last.attributes.get("janelas")
+            if isinstance(janelas, list):
+                self._windows = janelas
 
         self.async_on_remove(
             async_dispatcher_connect(
@@ -234,4 +239,8 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         self._count += 1
         self._recent.insert(0, {key: alerta.get(key, "") for key in _ALERT_KEYS})
         del self._recent[MAX_RECENT:]
+        # Janelas (dia/7d/total) vêm com o N3; guarda a última recebida.
+        janelas = alerta.get("janelas")
+        if isinstance(janelas, list) and janelas:
+            self._windows = janelas
         self.async_write_ha_state()
