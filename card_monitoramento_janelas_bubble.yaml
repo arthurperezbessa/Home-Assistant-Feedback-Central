@@ -1,27 +1,37 @@
 # ============================================================================
-# Card do CENTRAL: quedas por período (dia anterior / 7 dias / total) por
-# entidade de um cliente, com flickers separados. Preenche no relatório N3.
+# Card do CENTRAL: quedas por período AGRUPADAS POR INTEGRAÇÃO (um cliente).
+# Escala bem quando muitas entidades caem juntas (ex.: hub offline = 50
+# entidades → 1 linha "Integração — 50 entidades", com as 3 piores nomeadas).
 # Troque 'sensor.feedback_marzzano_monitoring' pelo sensor do cliente.
 #
-# OBS: entity_id em inglês (_monitoring). Central em português → _monitoramento.
+# Preenche no relatório diário (N3). Central em português → _monitoramento.
 # ============================================================================
 
 type: markdown
 content: >
   {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
-  {% set js = state_attr(sensor, 'janelas') or [] %}
-  {% set o = namespace(v='## 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' — quedas por período\n') %}
-  {% if js %}
-  {% for e in js %}
-  {% set d = e.windows.dia %}
-  {% set w = e.windows.semana %}
-  {% set t = e.windows.total %}
-  {% set o.v = o.v ~ '\n**' ~ e.name ~ '**' %}
+  {% set integs = state_attr(sensor, 'janelas_por_integracao') or [] %}
+  {% set o = namespace(v='## 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' — quedas por integração\n') %}
+  {% if integs %}
+  {% for it in integs %}
+  {% set d = it.janela.dia %}
+  {% set w = it.janela.semana %}
+  {% set t = it.janela.total %}
+  {% set o.v = o.v ~ '\n### ' ~ it.integracao ~ ' — ' ~ it.entidades_afetadas ~ ' entidades' %}
   {% set o.v = o.v ~ '\n- 🔴 quedas — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
     ~ '), 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt
     ~ '), total ' ~ t.outages ~ '× (' ~ t.outage_downtime_fmt ~ ')' %}
   {% set o.v = o.v ~ '\n- ⚡ flickers — ontem ' ~ d.flickers ~ ', 7d ' ~ w.flickers
-    ~ ', total ' ~ t.flickers ~ '\n' %}
+    ~ ', total ' ~ t.flickers %}
+  {% for e in it.top %}
+  {% set o.v = o.v ~ '\n  • ' ~ e.name ~ ': ontem ' ~ e.windows.dia.outages
+    ~ '× (' ~ e.windows.dia.outage_downtime_fmt ~ ')' %}
+  {% endfor %}
+  {% set resto = it.entidades_afetadas - (it.top | length) %}
+  {% if resto > 0 %}
+  {% set o.v = o.v ~ '\n  • (+' ~ resto ~ ' entidades)' %}
+  {% endif %}
+  {% set o.v = o.v ~ '\n' %}
   {% endfor %}
   {% else %}
   {% set o.v = o.v ~ '\n_Sem dados por período ainda — chega no relatório diário (N3)._' %}

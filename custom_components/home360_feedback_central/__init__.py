@@ -201,7 +201,22 @@ async def _async_handle_monitor(
     janelas = data.get("entidades_janelas")
     if not isinstance(janelas, list):
         janelas = []
-    janelas = janelas[:10]
+    janelas = janelas[:3]
+
+    janela_integracao = data.get("janela_integracao")
+    if not isinstance(janela_integracao, dict):
+        janela_integracao = None
+
+    # Entrada agrupada por integração (preenchida no N3, com o agregado).
+    integ = None
+    if janela_integracao is not None:
+        integ = {
+            "integracao": integracao,
+            "entidades_afetadas": total,
+            "janela": janela_integracao,
+            "top": janelas,
+            "em": agora.isoformat(timespec="seconds"),
+        }
 
     alerta = {
         "cliente": cliente,
@@ -212,6 +227,7 @@ async def _async_handle_monitor(
         "titulo": titulo,
         "total_afetadas": total,
         "janelas": janelas,
+        "integ": integ,
         "em": agora.isoformat(timespec="seconds"),
     }
 

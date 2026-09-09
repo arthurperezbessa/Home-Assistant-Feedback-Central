@@ -45,13 +45,14 @@ content: >
 #        if m.entity_id.startswith('sensor.feedback_')
 #        and m.entity_id.endswith('_monitoring') %}
 #   {% set cliente = m.attributes.get('cliente', m.entity_id) %}
-#   {% set js = m.attributes.get('janelas') or [] %}
+#   {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
 #   {% set o.v = o.v ~ '\n### ' ~ cliente ~ '\n' %}
-#   {% if js %}
-#   {% for e in js[:5] %}
-#   {% set d = e.windows.dia %}{% set w = e.windows.semana %}{% set t = e.windows.total %}
-#   {% set o.v = o.v ~ '\n- 🔴 ' ~ e.name ~ ' — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
-#     ~ '), 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ '), total ' ~ t.outages
+#   {% if integs %}
+#   {% for it in integs %}
+#   {% set d = it.janela.dia %}{% set w = it.janela.semana %}{% set t = it.janela.total %}
+#   {% set o.v = o.v ~ '\n- 🔴 ' ~ it.integracao ~ ' (' ~ it.entidades_afetadas
+#     ~ ' ent.) — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt ~ '), 7d '
+#     ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ '), total ' ~ t.outages
 #     ~ '× (' ~ t.outage_downtime_fmt ~ ') · ⚡ ' ~ d.flickers %}
 #   {% endfor %}
 #   {% set o.v = o.v ~ '\n' %}
