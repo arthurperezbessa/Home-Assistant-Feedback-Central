@@ -1,7 +1,7 @@
 {
   "domain": "home360_feedback_central",
   "name": "Home360 Feedback Central",
-  "version": "0.3.0",
+  "version": "0.2.1",
   "config_flow": true,
   "dependencies": [
     "webhook",
