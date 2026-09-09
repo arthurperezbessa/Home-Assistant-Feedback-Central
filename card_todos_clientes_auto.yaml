@@ -1,0 +1,84 @@
+# ============================================================================
+# CARDS INTELIGENTES — listam TODOS os clientes automaticamente.
+# Não precisa selecionar entidade por cliente: os cards varrem os sensores
+# pelo padrão do nome. Cliente novo cadastrado no central aparece sozinho.
+#
+# Sensores por cliente:
+#   feedback     -> sensor.feedback_<cliente>
+#   monitoramento -> sensor.feedback_<cliente>_monitoring   (central em inglês)
+# Central em português: troque '_monitoring' por '_monitoramento' abaixo.
+# ============================================================================
+
+
+# ── CARD A: FEEDBACK de todos os clientes ────────────────────────────────────
+type: markdown
+content: >
+  {% set cor = {'Erros Gerais':'🔴','Áudio e Vídeo':'🟣','Iluminação':'🟡',
+    'Ar Condicionado':'🔵','Cortinas':'🟤','Automações ou Cenas':'🟢','Melhorias':'🟠'} %}
+  {% set o = namespace(v='# 💬 Feedback dos clientes\n') %}
+  {% for s in states.sensor
+       if s.entity_id.startswith('sensor.feedback_')
+       and not s.entity_id.endswith('_monitoring') %}
+  {% set cliente = s.attributes.get('cliente', s.entity_id) %}
+  {% set msgs = s.attributes.get('ultimas_mensagens') or [] %}
+  {% set o.v = o.v ~ '\n### ' ~ cliente ~ ' · ' ~ s.state ~ ' reports\n' %}
+  {% if msgs %}
+  {% for m in msgs[:3] %}
+  {% set o.v = o.v ~ '\n- ' ~ cor.get(m.categoria, '⚪') ~ ' **' ~ m.categoria
+    ~ '** — ' ~ m.texto %}
+  {% endfor %}
+  {% set o.v = o.v ~ '\n' %}
+  {% else %}
+  {% set o.v = o.v ~ '\n_Sem mensagens._\n' %}
+  {% endif %}
+  {% endfor %}
+  {{ o.v }}
+
+
+# ── CARD B: JANELAS de monitoramento (ontem/7d/total) de todos ───────────────
+# Cole como OUTRO card.
+#
+# type: markdown
+# content: >
+#   {% set o = namespace(v='# 🖥️ Monitoramento — quedas por período\n') %}
+#   {% for m in states.sensor
+#        if m.entity_id.startswith('sensor.feedback_')
+#        and m.entity_id.endswith('_monitoring') %}
+#   {% set cliente = m.attributes.get('cliente', m.entity_id) %}
+#   {% set js = m.attributes.get('janelas') or [] %}
+#   {% set o.v = o.v ~ '\n### ' ~ cliente ~ '\n' %}
+#   {% if js %}
+#   {% for e in js[:5] %}
+#   {% set d = e.windows.dia %}{% set w = e.windows.semana %}{% set t = e.windows.total %}
+#   {% set o.v = o.v ~ '\n- 🔴 ' ~ e.name ~ ' — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
+#     ~ '), 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ '), total ' ~ t.outages
+#     ~ '× (' ~ t.outage_downtime_fmt ~ ') · ⚡ ' ~ d.flickers %}
+#   {% endfor %}
+#   {% set o.v = o.v ~ '\n' %}
+#   {% else %}
+#   {% set o.v = o.v ~ '\n_Sem dados por período ainda (chega no N3)._\n' %}
+#   {% endif %}
+#   {% endfor %}
+#   {{ o.v }}
+
+
+# ── CARD C (opcional): GRID de tiles clicáveis por cliente (auto-entities) ────
+# Requer custom:auto-entities. Gera um tile por cliente automaticamente.
+#
+# type: custom:auto-entities
+# card:
+#   type: grid
+#   columns: 3
+#   square: false
+# card_param: cards
+# sort:
+#   method: friendly_name
+# filter:
+#   include:
+#     - entity_id: "sensor.feedback_*_monitoring"
+#       options:
+#         type: custom:bubble-card
+#         card_type: button
+#         button_type: state
+#         show_state: true
+#         icon: mdi:lan-disconnect
