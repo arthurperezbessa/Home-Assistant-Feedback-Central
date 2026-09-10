@@ -1,17 +1,23 @@
 # ============================================================================
-# Card do CENTRAL: quedas por período AGRUPADAS POR INTEGRAÇÃO (um cliente).
-# Escala bem quando muitas entidades caem juntas (ex.: hub offline = 50
-# entidades → 1 linha "Integração — 50 entidades", com as 3 piores nomeadas).
-# Troque 'sensor.feedback_marzzano_monitoring' pelo sensor do cliente.
+# Card do CENTRAL: quedas por período, AGRUPADAS POR INTEGRAÇÃO, de TODOS os
+# clientes automaticamente. Varre os sensores sensor.feedback_*_monitoring —
+# cliente novo cadastrado no central aparece sozinho, sem selecionar entidade.
 #
-# Preenche no relatório diário (N3). Central em português → _monitoramento.
+# Escala quando muitas entidades caem juntas (hub offline = 50 entidades →
+# "Integração — 50 entidades", com as 3 piores nomeadas + "(+47)").
+#
+# Preenche no N3 e no snapshot de boot. Central em português → _monitoramento.
 # ============================================================================
 
 type: markdown
 content: >
-  {% set sensor = 'sensor.feedback_marzzano_monitoring' %}
-  {% set integs = state_attr(sensor, 'janelas_por_integracao') or [] %}
-  {% set o = namespace(v='## 🖥️ ' ~ state_attr(sensor, 'cliente') ~ ' — quedas por integração\n') %}
+  {% set o = namespace(v='# 🖥️ Monitoramento — quedas por integração\n') %}
+  {% for m in states.sensor
+       if m.entity_id.startswith('sensor.feedback_')
+       and m.entity_id.endswith('_monitoring') %}
+  {% set cliente = m.attributes.get('cliente', m.entity_id) %}
+  {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
+  {% set o.v = o.v ~ '\n## ' ~ cliente %}
   {% if integs %}
   {% for it in integs %}
   {% set d = it.janela.dia %}
@@ -31,9 +37,10 @@ content: >
   {% if resto > 0 %}
   {% set o.v = o.v ~ '\n  • (+' ~ resto ~ ' entidades)' %}
   {% endif %}
-  {% set o.v = o.v ~ '\n' %}
   {% endfor %}
   {% else %}
-  {% set o.v = o.v ~ '\n_Sem dados por período ainda — chega no relatório diário (N3)._' %}
+  {% set o.v = o.v ~ '\n_Sem quedas registradas._' %}
   {% endif %}
+  {% set o.v = o.v ~ '\n' %}
+  {% endfor %}
   {{ o.v }}
