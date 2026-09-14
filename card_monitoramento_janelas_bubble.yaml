@@ -15,6 +15,8 @@ type: markdown
 content: >
   {% set o = namespace(v='# 🖥️ Monitoramento — quedas por integração\n') %}
   {% set any = namespace(shown=false) %}
+  {% set now_ts = as_timestamp(now()) %}
+  {% set FRESH_H = 24 %}
   {% for m in states.sensor
        if m.entity_id.startswith('sensor.feedback_')
        and m.entity_id.endswith('_monitoring') %}
@@ -22,7 +24,9 @@ content: >
   {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
   {% set vis = namespace(items=[]) %}
   {% for it in integs %}
-  {% if (it.janela.semana.outages | int) > 0 %}
+  {% set em = as_timestamp(it.em, 0) %}
+  {% if (it.janela.semana.outages | int) > 0
+       and em > 0 and (now_ts - em) < FRESH_H * 3600 %}
   {% set vis.items = vis.items + [it] %}
   {% endif %}
   {% endfor %}
