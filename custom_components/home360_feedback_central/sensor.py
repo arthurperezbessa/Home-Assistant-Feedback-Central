@@ -244,6 +244,12 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         """Se o alerta é deste cliente, incrementa e guarda no topo."""
         if alerta.get("cliente") != self._client_id:
             return
+        # "refresh": sincronização diária silenciosa das janelas — não conta
+        # como alerta (não mexe no total nem no feed), só atualiza/remove a
+        # janela da integração.
+        if alerta.get("kind") == "refresh":
+            self._apply_window_refresh(alerta)
+            return
         self._count += 1
         self._recent.insert(0, {key: alerta.get(key, "") for key in _ALERT_KEYS})
         del self._recent[MAX_RECENT:]
@@ -252,4 +258,31 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         integ = alerta.get("integ")
         if isinstance(integ, dict) and integ.get("integracao"):
             self._integ[integ["integracao"]] = integ
+        self.async_write_ha_state()
+
+    @callback
+    def _apply_window_refresh(self, alerta: dict) -> None:
+        """Atualiza a janela de uma integração sem contar como alerta.
+
+        Enviado diariamente pelo Entity Monitor para manter os números atuais:
+        integração com queda na semana é atualizada; integração que zerou (0
+        quedas na semana) é REMOVIDA, para o número velho "congelado" sumir do
+        dashboard.
+        """
+        integ = alerta.get("integ")
+        if not (isinstance(integ, dict) and integ.get("integracao")):
+            return
+        semana_outages = 0
+        janela = integ.get("janela")
+        if isinstance(janela, dict):
+            semana = janela.get("semana")
+            if isinstance(semana, dict):
+                try:
+                    semana_outages = int(semana.get("outages") or 0)
+                except (TypeError, ValueError):
+                    semana_outages = 0
+        if semana_outages > 0:
+            self._integ[integ["integracao"]] = integ
+        else:
+            self._integ.pop(integ["integracao"], None)
         self.async_write_ha_state()

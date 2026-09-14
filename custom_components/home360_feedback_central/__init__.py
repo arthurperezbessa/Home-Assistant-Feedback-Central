@@ -231,12 +231,22 @@ async def _async_handle_monitor(
         "em": agora.isoformat(timespec="seconds"),
     }
 
-    _LOGGER.info(
-        "Home360 Monitor: alerta %s de %s (%s)", kind, cliente, integracao
-    )
+    # "refresh": sincronização diária silenciosa das janelas (Entity Monitor
+    # >= 0.8.4). Não é um alerta — não vai pro feed, logbook, push nem evento;
+    # só atualiza (ou remove) a janela por integração no sensor do cliente.
+    is_refresh = kind == "refresh"
+
+    if is_refresh:
+        _LOGGER.debug(
+            "Home360 Monitor: refresh de %s (%s)", cliente, integracao
+        )
+    else:
+        _LOGGER.info(
+            "Home360 Monitor: alerta %s de %s (%s)", kind, cliente, integracao
+        )
 
     # Logbook (histórico). Sem push, sem persistent notification.
-    if hass.services.has_service("logbook", "log"):
+    if not is_refresh and hass.services.has_service("logbook", "log"):
         await hass.services.async_call(
             "logbook",
             "log",
@@ -247,7 +257,8 @@ async def _async_handle_monitor(
             blocking=False,
         )
 
-    hass.bus.async_fire(EVENT_MONITOR, alerta)
+    if not is_refresh:
+        hass.bus.async_fire(EVENT_MONITOR, alerta)
     async_dispatcher_send(hass, signal_new_monitor(entry.entry_id), alerta)
 
 
