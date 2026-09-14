@@ -29,9 +29,14 @@ content: >
   {% set w = peso.get(kind, 0) if recente else 0 %}
   {% if recente %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
   {% set dot = cor.get(kind, '⚪') if recente else '🟢' %}
-  {% set desc = (s.attributes.get('ultima_integracao', '') ~ ' — '
-       ~ s.attributes.get('ultima_mensagem', '')) if recente else 'sem alertas recentes' %}
-  {% set linha = dot ~ ' **' ~ cliente ~ '** · ' ~ desc %}
+  {% set js = s.attributes.get('janelas_por_integracao') or [] %}
+  {% set qo = namespace(n=0) %}
+  {% for it in js %}{% set qo.n = qo.n + (it.janela.dia.outages | int) %}{% endfor %}
+  {% set ig = s.attributes.get('ultima_integracao') or 'alerta recente' %}
+  {% set desc = (((ig[0] | upper) ~ ig[1:])
+       ~ (' · ' ~ qo.n ~ ' quedas ontem' if qo.n > 0 else ''))
+       if recente else 'sem alertas recentes' %}
+  {% set linha = dot ~ ' **' ~ (cliente[0] | upper) ~ cliente[1:] ~ '** · ' ~ desc %}
   {% set ns.itens = ns.itens + [{'ordem': (9 - w) ~ '_' ~ cliente, 'linha': linha}] %}
   {% endfor %}
   {% set corpo = ns.itens | sort(attribute='ordem') | map(attribute='linha') | join('\n- ') %}
