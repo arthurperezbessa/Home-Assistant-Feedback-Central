@@ -1,34 +1,43 @@
 # ============================================================================
 # Card do CENTRAL: quedas por período, AGRUPADAS POR INTEGRAÇÃO, de TODOS os
-# clientes automaticamente. Varre os sensores sensor.feedback_*_monitoring —
-# cliente novo cadastrado no central aparece sozinho, sem selecionar entidade.
+# clientes automaticamente. Varre sensor.feedback_*_monitoring.
 #
-# Escala quando muitas entidades caem juntas (hub offline = 50 entidades →
-# "Integração — 50 entidades", com as 3 piores nomeadas + "(+47)").
+# Regras de exibição:
+#  - Só mostra integrações com >=1 QUEDA real na última semana (0 quedas some,
+#    mesmo que tenha flicker).
+#  - Cliente sem nenhuma integração com queda na semana some do card.
+#  - Cabeçalhos com a 1ª letra maiúscula.
 #
-# Preenche no N3 e no snapshot de boot. Central em português → _monitoramento.
+# Central em português → troque '_monitoring' por '_monitoramento'.
 # ============================================================================
 
 type: markdown
 content: >
   {% set o = namespace(v='# 🖥️ Monitoramento — quedas por integração\n') %}
+  {% set any = namespace(shown=false) %}
   {% for m in states.sensor
        if m.entity_id.startswith('sensor.feedback_')
        and m.entity_id.endswith('_monitoring') %}
   {% set cliente = m.attributes.get('cliente', m.entity_id) %}
   {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
-  {% set o.v = o.v ~ '\n## ' ~ cliente %}
-  {% if integs %}
+  {% set vis = namespace(items=[]) %}
   {% for it in integs %}
+  {% if (it.janela.semana.outages | int) > 0 %}
+  {% set vis.items = vis.items + [it] %}
+  {% endif %}
+  {% endfor %}
+  {% if vis.items %}
+  {% set any.shown = true %}
+  {% set o.v = o.v ~ '\n## ' ~ (cliente[0] | upper) ~ cliente[1:] %}
+  {% for it in vis.items %}
   {% set d = it.janela.dia %}
   {% set w = it.janela.semana %}
-  {% set t = it.janela.total %}
-  {% set o.v = o.v ~ '\n### ' ~ it.integracao ~ ' — ' ~ it.entidades_afetadas ~ ' entidades' %}
+  {% set o.v = o.v ~ '\n### ' ~ (it.integracao[0] | upper) ~ it.integracao[1:]
+    ~ ' — ' ~ it.entidades_afetadas ~ ' entidades' %}
   {% set o.v = o.v ~ '\n- 🔴 quedas — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
-    ~ '), 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt
-    ~ '), total ' ~ t.outages ~ '× (' ~ t.outage_downtime_fmt ~ ')' %}
-  {% set o.v = o.v ~ '\n- ⚡ flickers — ontem ' ~ d.flickers ~ ', 7d ' ~ w.flickers
-    ~ ', total ' ~ t.flickers %}
+    ~ ') | 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ ')' %}
+  {% set o.v = o.v ~ '\n- ⚡ flickers — ontem ' ~ d.flickers ~ ' | 7d ' ~ w.flickers %}
+  {% set o.v = o.v ~ '\n\n**Entidades mais problemáticas:**' %}
   {% for e in it.top %}
   {% set o.v = o.v ~ '\n  • ' ~ e.name ~ ': ontem ' ~ e.windows.dia.outages
     ~ '× (' ~ e.windows.dia.outage_downtime_fmt ~ ')' %}
@@ -38,9 +47,6 @@ content: >
   {% set o.v = o.v ~ '\n  • (+' ~ resto ~ ' entidades)' %}
   {% endif %}
   {% endfor %}
-  {% else %}
-  {% set o.v = o.v ~ '\n_Sem quedas registradas._' %}
   {% endif %}
-  {% set o.v = o.v ~ '\n' %}
   {% endfor %}
-  {{ o.v }}
+  {{ o.v if any.shown else o.v ~ '\n✅ Nenhuma queda na última semana.' }}
