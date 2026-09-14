@@ -30,11 +30,17 @@ content: >
   {% if recente %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
   {% set dot = cor.get(kind, '⚪') if recente else '🟢' %}
   {% set js = s.attributes.get('janelas_por_integracao') or [] %}
-  {% set qo = namespace(n=0) %}
-  {% for it in js %}{% set qo.n = qo.n + (it.janela.dia.outages | int) %}{% endfor %}
-  {% set ig = s.attributes.get('ultima_integracao') or 'alerta recente' %}
+  {% set worst = namespace(qtd=0, nome='') %}
+  {% for it in js %}
+  {% if (it.janela.dia.outages | int) > worst.qtd %}
+  {% set worst.qtd = it.janela.dia.outages | int %}
+  {% set worst.nome = it.integracao %}
+  {% endif %}
+  {% endfor %}
+  {% set ig = worst.nome if worst.qtd > 0
+       else (s.attributes.get('ultima_integracao') or 'alerta recente') %}
   {% set desc = (((ig[0] | upper) ~ ig[1:])
-       ~ (' · ' ~ qo.n ~ ' quedas ontem' if qo.n > 0 else ''))
+       ~ (' · ' ~ worst.qtd ~ ' quedas ontem' if worst.qtd > 0 else ''))
        if recente else 'sem alertas recentes' %}
   {% set linha = dot ~ ' **' ~ (cliente[0] | upper) ~ cliente[1:] ~ '** · ' ~ desc %}
   {% set ns.itens = ns.itens + [{'ordem': (9 - w) ~ '_' ~ cliente, 'linha': linha}] %}
