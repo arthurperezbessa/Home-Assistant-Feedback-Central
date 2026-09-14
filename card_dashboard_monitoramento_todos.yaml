@@ -1,10 +1,20 @@
 # ============================================================================
 # VIEW de monitoramento para MUITOS clientes (~20). Automático (novos entram).
 # Estratégia: priorizar. Quem tem problema recente vai pro TOPO; quem está OK
-# fica embaixo, em uma linha só. Detalhe fica num 2º card, só dos com alerta.
+# fica embaixo, em uma linha só. Detalhe fica no card da direita (por integração).
 #
-# "Recente" = último alerta nas últimas 24h (ajuste JANELA_H abaixo).
-# Cor por kind: 🟡 n1 · 🟠 n2 · 🔴 n3 · 🔵 snapshot · 🟢 OK
+# IMPORTANTE — consistência com o card de janelas (direita):
+#   A cor E os números desta esquerda vêm da MESMA fonte da direita:
+#   'janelas_por_integracao', considerando só integrações com queda real na
+#   semana (semana.outages > 0) e ainda "frescas" (it.em nas últimas JANELA_H).
+#   Assim um cliente só fica colorido se tem queda de verdade → nunca "colorido
+#   e vazio", e os dois cards SEMPRE concordam (ex.: Ramiro igual nos dois).
+#
+# Linha de um cliente com alerta (única linha):
+#   🔴 Cliente · Integração · N quedas ontem (tempo) · X ent. · ⏱️ Entidade (tempo)
+# Cliente sem queda fresca: 🟢 Cliente · OK
+# Cor da bolinha: severidade do último alerta (🟡 n1 · 🟠 n2 · 🔴 n3) se fresca;
+# senão 🔴 por padrão (pois há queda fresca). Sem queda → 🟢.
 #
 # OBS: entity_id em inglês (_monitoring). Central em português → _monitoramento.
 # ============================================================================
@@ -13,7 +23,6 @@
 # ── CARD 1 (principal): visão geral — 1 linha por cliente, pior no topo ──────
 type: markdown
 content: >
-  {% set peso = {'n3': 4, 'n2': 3, 'n1': 2, 'snapshot': 1} %}
   {% set cor = {'n3': '🔴', 'n2': '🟠', 'n1': '🟡', 'snapshot': '🔵'} %}
   {% set JANELA_H = 24 %}
   {% set now_ts = as_timestamp(now()) %}
@@ -25,44 +34,61 @@ content: >
   {% set cliente = s.attributes.get('cliente', s.entity_id) %}
   {% set kind = s.attributes.get('ultimo_kind') %}
   {% set ets = as_timestamp(s.attributes.get('ultimo_em'), 0) %}
-  {% set recente = ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in peso %}
-  {% set w = peso.get(kind, 0) if recente else 0 %}
-  {% if recente %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
-  {% set dot = cor.get(kind, '⚪') if recente else '🟢' %}
+  {% set kind_fresh = ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in cor %}
   {% set js = s.attributes.get('janelas_por_integracao') or [] %}
-  {% set worst = namespace(qtd=0, nome='') %}
-  {% set we = namespace(seg=0, nome='', tempo='') %}
+  {% set worst = namespace(sem=0, dia=0, nome='', diafmt='', semfmt='', ent=0, top=[]) %}
   {% for it in js %}
   {% set emok = as_timestamp(it.em, 0) %}
-  {% if emok > 0 and (now_ts - emok) < JANELA_H * 3600 %}
-  {% if (it.janela.dia.outages | int) > worst.qtd %}
-  {% set worst.qtd = it.janela.dia.outages | int %}
+  {% if emok > 0 and (now_ts - emok) < JANELA_H * 3600 and (it.janela.semana.outages | int) > 0 %}
+  {% if (it.janela.semana.outages | int) > worst.sem %}
+  {% set worst.sem = it.janela.semana.outages | int %}
+  {% set worst.dia = it.janela.dia.outages | int %}
   {% set worst.nome = it.integracao %}
+  {% set worst.diafmt = it.janela.dia.outage_downtime_fmt %}
+  {% set worst.semfmt = it.janela.semana.outage_downtime_fmt %}
+  {% set worst.ent = it.entidades_afetadas %}
+  {% set worst.top = it.top or [] %}
   {% endif %}
-  {% for e in (it.top or []) %}
-  {% if (e.windows.dia.outage_downtime | float) > we.seg %}
-  {% set we.seg = e.windows.dia.outage_downtime | float %}
-  {% set we.nome = e.name %}
-  {% set we.tempo = e.windows.dia.outage_downtime_fmt %}
-  {% endif %}
-  {% endfor %}
   {% endif %}
   {% endfor %}
-  {% set ig = worst.nome if worst.qtd > 0
-       else (s.attributes.get('ultima_integracao') or 'alerta recente') %}
-  {% set desc = (((ig[0] | upper) ~ ig[1:])
-       ~ (' · ' ~ worst.qtd ~ ' quedas ontem' if worst.qtd > 0 else '')
-       ~ (' · ⏱️ ' ~ we.nome ~ ' (' ~ we.tempo ~ ')' if we.seg > 0 else ''))
-       if recente else 'sem alertas recentes' %}
+  {% set alerta = worst.sem > 0 %}
+  {% if alerta %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
+  {% set usar_dia = worst.dia > 0 %}
+  {% set be = namespace(seg=-1, nome='', tempo='') %}
+  {% for e in worst.top %}
+  {% set seg = (e.windows.dia.outage_downtime | float) if usar_dia else (e.windows.semana.outage_downtime | float) %}
+  {% if seg > be.seg %}
+  {% set be.seg = seg %}
+  {% set be.nome = e.name %}
+  {% set be.tempo = e.windows.dia.outage_downtime_fmt if usar_dia else e.windows.semana.outage_downtime_fmt %}
+  {% endif %}
+  {% endfor %}
+  {% set dot = cor.get(kind, '🔴') if (alerta and kind_fresh) else ('🔴' if alerta else '🟢') %}
+  {% if alerta %}
+  {% set q = worst.dia if usar_dia else worst.sem %}
+  {% set qfmt = worst.diafmt if usar_dia else worst.semfmt %}
+  {% set quando = 'ontem' if usar_dia else '7d' %}
+  {% set desc = ((worst.nome[0] | upper) ~ worst.nome[1:])
+       ~ ' · ' ~ q ~ ' quedas ' ~ quando ~ ' (' ~ qfmt ~ ')'
+       ~ ' · ' ~ worst.ent ~ ' ent.'
+       ~ (' · ⏱️ ' ~ be.nome ~ ' (' ~ be.tempo ~ ')' if be.nome else '') %}
+  {% set rank = '%06d' | format(999999 - worst.sem) %}
+  {% set ordem = '0_' ~ rank ~ '_' ~ cliente %}
+  {% else %}
+  {% set desc = 'OK' %}
+  {% set ordem = '1_' ~ cliente %}
+  {% endif %}
   {% set linha = dot ~ ' **' ~ (cliente[0] | upper) ~ cliente[1:] ~ '** · ' ~ desc %}
-  {% set ns.itens = ns.itens + [{'ordem': (9 - w) ~ '_' ~ cliente, 'linha': linha}] %}
+  {% set ns.itens = ns.itens + [{'ordem': ordem, 'linha': linha}] %}
   {% endfor %}
   {% set corpo = ns.itens | sort(attribute='ordem') | map(attribute='linha') | join('\n- ') %}
   {{ '# 🖥️ Monitoramento · ' ~ (ns.total - ns.alerta) ~ '/' ~ ns.total ~ ' OK'
      ~ ('  ·  ⚠️ ' ~ ns.alerta ~ ' com alerta' if ns.alerta else '') ~ '\n\n- ' ~ corpo }}
 
 
-# ── CARD 2 (detalhe): só clientes COM alerta recente, com as últimas mensagens ─
+# ── CARD 2 (detalhe alternativo em markdown): só clientes COM alerta recente ──
+# Hoje o "detalhe" fica no card de janelas (card_monitoramento_janelas_bubble).
+# Este Card 2 é uma alternativa em texto; se for usar, ele já checa validade 24h.
 # Cole como OUTRO card, abaixo do Card 1.
 #
 # type: markdown
