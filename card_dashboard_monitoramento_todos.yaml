@@ -5,10 +5,10 @@
 #
 # IMPORTANTE — consistência com o card de janelas (direita):
 #   A cor E os números desta esquerda vêm da MESMA fonte da direita:
-#   'janelas_por_integracao', considerando só integrações com queda real na
-#   semana (semana.outages > 0) e ainda "frescas" (it.em nas últimas JANELA_H).
-#   Assim um cliente só fica colorido se tem queda de verdade → nunca "colorido
-#   e vazio", e os dois cards SEMPRE concordam (ex.: Ramiro igual nos dois).
+#   'janelas_por_integracao', considerando integrações com queda real na SEMANA
+#   (semana.outages > 0). É EXATAMENTE o mesmo filtro do card da direita, então
+#   os mesmos clientes/integrações aparecem nos dois (ex.: Ramiro igual nos dois).
+#   Mostra a semana inteira — sem filtro de "frescor" de 24h.
 #
 # Linha de um cliente com alerta (única linha):
 #   🔴 Cliente · Integração · N quedas ontem (tempo) · X ent. · ⏱️ Entidade (tempo)
@@ -38,8 +38,7 @@ content: >
   {% set js = s.attributes.get('janelas_por_integracao') or [] %}
   {% set worst = namespace(sem=0, dia=0, nome='', diafmt='', semfmt='', ent=0, top=[]) %}
   {% for it in js %}
-  {% set emok = as_timestamp(it.em, 0) %}
-  {% if emok > 0 and (now_ts - emok) < JANELA_H * 3600 and (it.janela.semana.outages | int) > 0 %}
+  {% if (it.janela.semana.outages | int) > 0 %}
   {% if (it.janela.semana.outages | int) > worst.sem %}
   {% set worst.sem = it.janela.semana.outages | int %}
   {% set worst.dia = it.janela.dia.outages | int %}

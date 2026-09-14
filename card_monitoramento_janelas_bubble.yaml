@@ -3,10 +3,13 @@
 # clientes automaticamente. Varre sensor.feedback_*_monitoring.
 #
 # Regras de exibição:
-#  - Só mostra integrações com >=1 QUEDA real na última semana (0 quedas some,
-#    mesmo que tenha flicker).
+#  - Mostra integrações com >=1 QUEDA na SEMANA (semana.outages > 0).
+#    Mostra a semana inteira — NÃO filtra por "frescor" de 24h.
 #  - Cliente sem nenhuma integração com queda na semana some do card.
 #  - Cabeçalhos com a 1ª letra maiúscula.
+#
+# Consistência com o card de resumo (esquerda): os dois usam o MESMO filtro
+# (semana.outages > 0), então os mesmos clientes/integrações aparecem nos dois.
 #
 # Central em português → troque '_monitoring' por '_monitoramento'.
 # ============================================================================
@@ -15,8 +18,6 @@ type: markdown
 content: >
   {% set o = namespace(v='# 🖥️ Monitoramento — quedas por integração\n') %}
   {% set any = namespace(shown=false) %}
-  {% set now_ts = as_timestamp(now()) %}
-  {% set FRESH_H = 24 %}
   {% for m in states.sensor
        if m.entity_id.startswith('sensor.feedback_')
        and m.entity_id.endswith('_monitoring') %}
@@ -24,9 +25,7 @@ content: >
   {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
   {% set vis = namespace(items=[]) %}
   {% for it in integs %}
-  {% set em = as_timestamp(it.em, 0) %}
-  {% if (it.janela.semana.outages | int) > 0
-       and em > 0 and (now_ts - em) < FRESH_H * 3600 %}
+  {% if (it.janela.semana.outages | int) > 0 %}
   {% set vis.items = vis.items + [it] %}
   {% endif %}
   {% endfor %}
@@ -38,12 +37,12 @@ content: >
   {% set w = it.janela.semana %}
   {% set o.v = o.v ~ '\n### ' ~ (it.integracao[0] | upper) ~ it.integracao[1:]
     ~ ' — ' ~ it.entidades_afetadas ~ ' entidades' %}
-  {% set o.v = o.v ~ '\n- 🔴 quedas — ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
+  {% set o.v = o.v ~ '\n- 🔴 Quedas — Ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
     ~ ') | 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ ')' %}
-  {% set o.v = o.v ~ '\n- ⚡ flickers — ontem ' ~ d.flickers ~ ' | 7d ' ~ w.flickers %}
+  {% set o.v = o.v ~ '\n- ⚡ Flickers — Ontem ' ~ d.flickers ~ ' | 7d ' ~ w.flickers %}
   {% set o.v = o.v ~ '\n\n**Entidades mais problemáticas:**' %}
   {% for e in it.top %}
-  {% set o.v = o.v ~ '\n  • ' ~ e.name ~ ': ontem ' ~ e.windows.dia.outages
+  {% set o.v = o.v ~ '\n  • ' ~ e.name ~ ': Ontem ' ~ e.windows.dia.outages
     ~ '× (' ~ e.windows.dia.outage_downtime_fmt ~ ')' %}
   {% endfor %}
   {% set resto = it.entidades_afetadas - (it.top | length) %}
