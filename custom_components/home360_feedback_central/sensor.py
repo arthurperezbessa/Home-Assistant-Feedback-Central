@@ -161,6 +161,9 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
     _attr_translation_key = "monitoramento"
     _attr_icon = "mdi:lan-disconnect"
     _attr_should_poll = False
+    # Atributos grandes e trocados a cada sincronização: fora do recorder, para
+    # não inchar o banco do central (continuam disponíveis para os cards).
+    _unrecorded_attributes = frozenset({"estado", "janelas_por_integracao"})
 
     def __init__(self, entry: ConfigEntry, client_id: str) -> None:
         """Inicializa o sensor de monitoramento do cliente."""
@@ -170,6 +173,9 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         self._count = 0
         self._recent: list[dict] = []
         self._integ: dict[str, dict] = {}
+        # Estado completo (Entity Monitor >= 0.9.0) + quando chegou.
+        self._estado: dict | None = None
+        self._sincronizado_em: str | None = None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_{client_id}")},
             name=f"Feedback {client_id}",
@@ -187,7 +193,12 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         """Cliente + últimos 10 alertas + atalhos do último."""
         attrs: dict = {
             "cliente": self._client_id,
+            # Fonte do dashboard. sincronizado_em = hora do CENTRAL em que o
+            # último estado chegou (não depende do relógio do cliente).
+            "estado": self._estado,
+            "sincronizado_em": self._sincronizado_em,
             "ultimos_alertas": self._recent,
+            # Legado (Entity Monitor < 0.9.0); não é usado pelos cards novos.
             "janelas_por_integracao": sorted(
                 self._integ.values(),
                 key=lambda x: x.get("entidades_afetadas", 0),
@@ -223,8 +234,12 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
                     for a in recentes
                     if isinstance(a, dict)
                 ][:MAX_RECENT]
+            estado = last.attributes.get("estado")
+            if isinstance(estado, dict):
+                self._estado = estado
+                self._sincronizado_em = last.attributes.get("sincronizado_em")
             integs = last.attributes.get("janelas_por_integracao")
-            if isinstance(integs, list):
+            if self._estado is None and isinstance(integs, list):
                 self._integ = {
                     e["integracao"]: e
                     for e in integs
@@ -244,6 +259,14 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         """Se o alerta é deste cliente, incrementa e guarda no topo."""
         if alerta.get("cliente") != self._client_id:
             return
+        # "estado": substitui TUDO o que havia do cliente (sem mesclar). Não
+        # conta como alerta. O legado por integração deixa de ser usado.
+        if alerta.get("kind") == "estado":
+            self._estado = alerta.get("estado")
+            self._sincronizado_em = alerta.get("em")
+            self._integ = {}
+            self.async_write_ha_state()
+            return
         # "refresh": sincronização diária silenciosa das janelas — não conta
         # como alerta (não mexe no total nem no feed), só atualiza/remove a
         # janela da integração.
@@ -256,7 +279,11 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         # Agregado por integração (dia/7d/total) vem com o N3; guarda por
         # integração (uma entrada por integração, atualizada a cada N3).
         integ = alerta.get("integ")
-        if isinstance(integ, dict) and integ.get("integracao"):
+        if (
+            self._estado is None
+            and isinstance(integ, dict)
+            and integ.get("integracao")
+        ):
             self._integ[integ["integracao"]] = integ
         self.async_write_ha_state()
 
@@ -270,7 +297,9 @@ class ClientMonitorSensor(RestoreEntity, SensorEntity):
         dashboard.
         """
         integ = alerta.get("integ")
-        if not (isinstance(integ, dict) and integ.get("integracao")):
+        if self._estado is not None or not (
+            isinstance(integ, dict) and integ.get("integracao")
+        ):
             return
         semana_outages = 0
         janela = integ.get("janela")

@@ -1,115 +1,82 @@
 # ============================================================================
-# VIEW de monitoramento para MUITOS clientes (~20). Automático (novos entram).
-# Estratégia: priorizar. Quem tem problema recente vai pro TOPO; quem está OK
-# fica embaixo, em uma linha só. Detalhe fica no card da direita (por integração).
+# Card do CENTRAL (esquerda): visão geral — 1 linha por cliente, pior no topo.
+# Auto-descobre os clientes varrendo sensor.feedback_*_monitoring.
 #
-# IMPORTANTE — consistência com o card de janelas (direita):
-#   A cor E os números desta esquerda vêm da MESMA fonte da direita:
-#   'janelas_por_integracao', considerando integrações com queda real na SEMANA
-#   (semana.outages > 0). É EXATAMENTE o mesmo filtro do card da direita, então
-#   os mesmos clientes/integrações aparecem nos dois (ex.: Ramiro igual nos dois).
-#   Mostra a semana inteira — sem filtro de "frescor" de 24h.
+# Fonte: atributo 'estado' (Entity Monitor >= 0.9.0), que o cliente reenvia a
+# cada 30 min e após cada queda/recuperação. O central SUBSTITUI o estado
+# inteiro a cada envio, então os números são sempre atuais. Janelas CORRIDAS:
+# "24h" = últimas 24 horas, "7d" = últimos 7 dias, a partir do último envio.
 #
-# Linha de um cliente com alerta (única linha):
-#   🔴 Cliente · Integração · N quedas ontem (tempo) · X ent. · ⏱️ Entidade (tempo)
-# Cliente sem queda fresca: 🟢 Cliente · OK
-# Cor da bolinha: severidade do último alerta (🟡 n1 · 🟠 n2 · 🔴 n3) se fresca;
-# senão 🔴 por padrão (pois há queda fresca). Sem queda → 🟢.
+# Níveis (nessa ordem no card):
+#   ⚫ sem contato   — nenhum estado recebido há mais de SEM_CONTATO_H horas
+#                     (HA ou internet do cliente fora do ar)
+#   🔴 caída agora   — alguma entidade está unavailable neste momento
+#   🟠 queda 24h     — houve queda nas últimas 24h (já recuperada)
+#   🟡 queda 7d      — houve queda nos últimos 7 dias (nada nas últimas 24h)
+#   ⚪ aguardando    — cliente ainda sem Entity Monitor 0.9.0
+#   🟢 OK
 #
-# OBS: entity_id em inglês (_monitoring). Central em português → _monitoramento.
+# 1 queda = 1 entidade unavailable por >= 30s. Flickers ficam no card de
+# detalhe (direita).
+#
+# Central em português → troque '_monitoring' por '_monitoramento'.
 # ============================================================================
 
-
-# ── CARD 1 (principal): visão geral — 1 linha por cliente, pior no topo ──────
 type: markdown
 content: >
-  {% set cor = {'n3': '🔴', 'n2': '🟠', 'n1': '🟡', 'snapshot': '🔵'} %}
-  {% set JANELA_H = 24 %}
+  {% macro dur(segundos) %}{% set t = segundos | int(0) %}{{ (t ~ 's') if t < 60 else ((t // 60) ~ 'm') if t < 3600 else (((t // 60 + 29) // 60) ~ 'h') if t < 172800 else ((t // 86400) ~ 'd') }}{% endmacro %}
+  {% set SEM_CONTATO_H = 1 %}
   {% set now_ts = as_timestamp(now()) %}
-  {% set ns = namespace(itens=[], alerta=0, total=0) %}
+  {% set ns = namespace(itens=[], problema=0, total=0) %}
   {% for s in states.sensor
        if s.entity_id.startswith('sensor.feedback_')
        and s.entity_id.endswith('_monitoring') %}
   {% set ns.total = ns.total + 1 %}
   {% set cliente = s.attributes.get('cliente', s.entity_id) %}
-  {% set kind = s.attributes.get('ultimo_kind') %}
-  {% set ets = as_timestamp(s.attributes.get('ultimo_em'), 0) %}
-  {% set kind_fresh = ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in cor %}
-  {% set js = s.attributes.get('janelas_por_integracao') or [] %}
-  {% set worst = namespace(sem=0, dia=0, nome='', diafmt='', semfmt='', ent=0, top=[]) %}
-  {% for it in js %}
-  {% if (it.janela.semana.outages | int) > 0 %}
-  {% if (it.janela.semana.outages | int) > worst.sem %}
-  {% set worst.sem = it.janela.semana.outages | int %}
-  {% set worst.dia = it.janela.dia.outages | int %}
-  {% set worst.nome = it.integracao %}
-  {% set worst.diafmt = it.janela.dia.outage_downtime_fmt %}
-  {% set worst.semfmt = it.janela.semana.outage_downtime_fmt %}
-  {% set worst.ent = it.entidades_afetadas %}
-  {% set worst.top = it.top or [] %}
-  {% endif %}
-  {% endif %}
-  {% endfor %}
-  {% set alerta = worst.sem > 0 %}
-  {% if alerta %}{% set ns.alerta = ns.alerta + 1 %}{% endif %}
-  {% set usar_dia = worst.dia > 0 %}
-  {% set be = namespace(seg=-1, nome='', tempo='') %}
-  {% for e in worst.top %}
-  {% set seg = (e.windows.dia.outage_downtime | float) if usar_dia else (e.windows.semana.outage_downtime | float) %}
-  {% if seg > be.seg %}
-  {% set be.seg = seg %}
-  {% set be.nome = e.name %}
-  {% set be.tempo = e.windows.dia.outage_downtime_fmt if usar_dia else e.windows.semana.outage_downtime_fmt %}
-  {% endif %}
-  {% endfor %}
-  {% set dot = cor.get(kind, '🔴') if (alerta and kind_fresh) else ('🔴' if alerta else '🟢') %}
-  {% if alerta %}
-  {% set q = worst.dia if usar_dia else worst.sem %}
-  {% set qfmt = worst.diafmt if usar_dia else worst.semfmt %}
-  {% set quando = 'ontem' if usar_dia else '7d' %}
-  {% set desc = ((worst.nome[0] | upper) ~ worst.nome[1:])
-       ~ ' · ' ~ q ~ ' quedas ' ~ quando ~ ' (' ~ qfmt ~ ')'
-       ~ ' · ' ~ worst.ent ~ ' ent.'
-       ~ (' · ⏱️ ' ~ be.nome ~ ' (' ~ be.tempo ~ ')' if be.nome else '') %}
-  {% set rank = '%06d' | format(999999 - worst.sem) %}
-  {% set ordem = '0_' ~ rank ~ '_' ~ cliente %}
+  {% set nome = '**' ~ (cliente[0] | upper) ~ cliente[1:] ~ '**' %}
+  {% set est = s.attributes.get('estado') %}
+  {% set idade = now_ts - as_timestamp(s.attributes.get('sincronizado_em'), 0) %}
+  {% set a = 0 %}{% set b = 0 %}
+  {% if not est %}
+  {% set nivel = 4 %}
+  {% set linha = '⚪ ' ~ nome ~ ' · aguardando Entity Monitor 0.9' %}
+  {% elif idade > SEM_CONTATO_H * 3600 %}
+  {% set nivel = 0 %}
+  {% set linha = '⚫ ' ~ nome ~ ' · sem contato há ' ~ dur(idade) %}
   {% else %}
-  {% set desc = 'OK' %}
-  {% set ordem = '1_' ~ cliente %}
+  {% set its = est.integracoes or [] %}
+  {% set pior = its[0] if its else none %}
+  {% set nomeint = (' · ' ~ pior.integracao) if pior else '' %}
+  {% if est.caidas_agora | int > 0 %}
+  {% set nivel = 1 %}
+  {% set a = est.caidas_agora | int %}{% set b = est.dia.outages | int %}
+  {% set longa = namespace(ts=now_ts, nome='') %}
+  {% for it in its %}{% for e in it.entidades if e.caida_agora %}
+  {% set ts = as_timestamp(e.caida_desde, now_ts) %}
+  {% if ts < longa.ts %}{% set longa.ts = ts %}{% set longa.nome = e.nome %}{% endif %}
+  {% endfor %}{% endfor %}
+  {% set linha = '🔴 ' ~ nome ~ ' · ' ~ a ~ (' caídas' if a > 1 else ' caída') ~ ' agora' ~ nomeint
+       ~ ((' · ⏱️ ' ~ longa.nome ~ ' há ' ~ dur(now_ts - longa.ts)) if longa.nome else '') %}
+  {% elif est.dia.outages | int > 0 %}
+  {% set nivel = 2 %}
+  {% set a = est.dia.outages | int %}{% set b = est.dia.outage_downtime | int %}
+  {% set top = (pior.entidades[0] if pior and pior.entidades else none) %}
+  {% set linha = '🟠 ' ~ nome ~ ' · ' ~ a ~ (' quedas' if a > 1 else ' queda') ~ ' 24h (' ~ est.dia.outage_downtime_fmt ~ ')' ~ nomeint
+       ~ ((' · ⏱️ ' ~ top.nome ~ ' (' ~ top.dia.outage_downtime_fmt ~ ')') if top and top.dia.outages | int > 0 else '') %}
+  {% elif est.semana.outages | int > 0 %}
+  {% set nivel = 3 %}
+  {% set a = est.semana.outages | int %}{% set b = est.semana.outage_downtime | int %}
+  {% set linha = '🟡 ' ~ nome ~ ' · ' ~ a ~ (' quedas' if a > 1 else ' queda') ~ ' 7d (' ~ est.semana.outage_downtime_fmt ~ ')' ~ nomeint %}
+  {% else %}
+  {% set nivel = 5 %}
+  {% set linha = '🟢 ' ~ nome ~ ' · OK' %}
   {% endif %}
-  {% set linha = dot ~ ' **' ~ (cliente[0] | upper) ~ cliente[1:] ~ '** · ' ~ desc %}
+  {% endif %}
+  {% if nivel <= 3 %}{% set ns.problema = ns.problema + 1 %}{% endif %}
+  {% set ordem = '%d_%06d_%09d_%s' | format(nivel, 999999 - a, 999999999 - b, cliente) %}
   {% set ns.itens = ns.itens + [{'ordem': ordem, 'linha': linha}] %}
   {% endfor %}
   {% set corpo = ns.itens | sort(attribute='ordem') | map(attribute='linha') | join('\n- ') %}
-  {{ '# 🖥️ Monitoramento · ' ~ (ns.total - ns.alerta) ~ '/' ~ ns.total ~ ' OK'
-     ~ ('  ·  ⚠️ ' ~ ns.alerta ~ ' com alerta' if ns.alerta else '') ~ '\n\n- ' ~ corpo }}
-
-
-# ── CARD 2 (detalhe alternativo em markdown): só clientes COM alerta recente ──
-# Hoje o "detalhe" fica no card de janelas (card_monitoramento_janelas_bubble).
-# Este Card 2 é uma alternativa em texto; se for usar, ele já checa validade 24h.
-# Cole como OUTRO card, abaixo do Card 1.
-#
-# type: markdown
-# content: >
-#   {% set cor = {'n1':'🟡','n2':'🟠','n3':'🔴','snapshot':'🔵','test':'⚪'} %}
-#   {% set JANELA_H = 24 %}
-#   {% set now_ts = as_timestamp(now()) %}
-#   {% set o = namespace(v='') %}
-#   {% for s in states.sensor
-#        if s.entity_id.startswith('sensor.feedback_')
-#        and s.entity_id.endswith('_monitoring') %}
-#   {% set ets = as_timestamp(s.attributes.get('ultimo_em'), 0) %}
-#   {% set kind = s.attributes.get('ultimo_kind') %}
-#   {% if ets > 0 and (now_ts - ets) < JANELA_H * 3600 and kind in cor and kind != 'test' %}
-#   {% set cliente = s.attributes.get('cliente', s.entity_id) %}
-#   {% set o.v = o.v ~ '\n### ' ~ cliente ~ '\n' %}
-#   {% for a in (s.attributes.get('ultimos_alertas') or [])[:3] %}
-#   {% set o.v = o.v ~ '\n- ' ~ cor.get(a.kind,'⚪') ~ ' **' ~ a.integracao
-#     ~ '** — ' ~ a.mensagem ~ ' <small>'
-#     ~ (as_timestamp(a.em) | timestamp_custom('%d/%m %H:%M')) ~ '</small>' %}
-#   {% endfor %}
-#   {% set o.v = o.v ~ '\n' %}
-#   {% endif %}
-#   {% endfor %}
-#   {{ '## ⚠️ Precisam de atenção\n' ~ (o.v if o.v else '\n✅ Nenhum alerta recente.') }}
+  {{ '# 🖥️ Monitoramento · ' ~ (ns.total - ns.problema) ~ '/' ~ ns.total ~ ' OK'
+     ~ ('  ·  ⚠️ ' ~ ns.problema ~ ' com problema' if ns.problema else '')
+     ~ ('\n\n- ' ~ corpo if corpo else '\n\nNenhum cliente cadastrado.') }}

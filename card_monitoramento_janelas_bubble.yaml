@@ -1,55 +1,91 @@
 # ============================================================================
-# Card do CENTRAL: quedas por período, AGRUPADAS POR INTEGRAÇÃO, de TODOS os
-# clientes automaticamente. Varre sensor.feedback_*_monitoring.
+# Card do CENTRAL (direita): detalhe por cliente → integração → entidade.
+# Auto-descobre os clientes varrendo sensor.feedback_*_monitoring.
 #
-# Regras de exibição:
-#  - Mostra integrações com >=1 QUEDA na SEMANA (semana.outages > 0).
-#    Mostra a semana inteira — NÃO filtra por "frescor" de 24h.
-#  - Cliente sem nenhuma integração com queda na semana some do card.
-#  - Cabeçalhos com a 1ª letra maiúscula.
+# Fonte: atributo 'estado' (Entity Monitor >= 0.9.0) — mesma fonte e mesma
+# ordem do card de resumo (esquerda), então os dois sempre batem.
+# Janelas CORRIDAS: "24h" = últimas 24 horas, "7d" = últimos 7 dias.
 #
-# Consistência com o card de resumo (esquerda): os dois usam o MESMO filtro
-# (semana.outages > 0), então os mesmos clientes/integrações aparecem nos dois.
+# Mostra:
+#  - clientes com problema (caída agora / queda 24h / queda 7d / só flickers);
+#  - clientes SEM CONTATO (> SEM_CONTATO_H sem estado), com os últimos dados
+#    recebidos e a hora em que chegaram;
+#  - por integração: quedas 24h/7d, flickers à parte, caídas agora;
+#  - por entidade (as piores, até 30 por cliente): caída agora (há quanto
+#    tempo), quedas 24h/7d, última queda e flickers.
+#
+# 1 queda = 1 entidade unavailable por >= 30s. Flicker = voltou antes disso.
 #
 # Central em português → troque '_monitoring' por '_monitoramento'.
 # ============================================================================
 
 type: markdown
 content: >
-  {% set o = namespace(v='# 🖥️ Monitoramento — quedas por integração\n') %}
-  {% set any = namespace(shown=false) %}
-  {% for m in states.sensor
-       if m.entity_id.startswith('sensor.feedback_')
-       and m.entity_id.endswith('_monitoring') %}
-  {% set cliente = m.attributes.get('cliente', m.entity_id) %}
-  {% set integs = m.attributes.get('janelas_por_integracao') or [] %}
-  {% set vis = namespace(items=[]) %}
-  {% for it in integs %}
-  {% if (it.janela.semana.outages | int) > 0 %}
-  {% set vis.items = vis.items + [it] %}
+  {% macro dur(segundos) %}{% set t = segundos | int(0) %}{{ (t ~ 's') if t < 60 else ((t // 60) ~ 'm') if t < 3600 else (((t // 60 + 29) // 60) ~ 'h') if t < 172800 else ((t // 86400) ~ 'd') }}{% endmacro %}
+  {% macro q(w) %}{{ w.outages ~ '×' ~ ((' (' ~ w.outage_downtime_fmt ~ ')') if w.outages | int > 0 else '') }}{% endmacro %}
+  {% macro quando(iso) %}{{ as_timestamp(iso, 0) | timestamp_custom('%d/%m %H:%M') }}{% endmacro %}
+  {% set SEM_CONTATO_H = 1 %}
+  {% set now_ts = as_timestamp(now()) %}
+  {% set ns = namespace(blocos=[], aguardando=[]) %}
+  {% for s in states.sensor
+       if s.entity_id.startswith('sensor.feedback_')
+       and s.entity_id.endswith('_monitoring') %}
+  {% set cliente = s.attributes.get('cliente', s.entity_id) %}
+  {% set nome = (cliente[0] | upper) ~ cliente[1:] %}
+  {% set est = s.attributes.get('estado') %}
+  {% set sync = s.attributes.get('sincronizado_em') %}
+  {% set idade = now_ts - as_timestamp(sync, 0) %}
+  {% if not est %}
+  {% set ns.aguardando = ns.aguardando + [nome] %}
+  {% else %}
+  {% set its = est.integracoes or [] %}
+  {% set sem_contato = idade > SEM_CONTATO_H * 3600 %}
+  {% if sem_contato or its %}
+  {% set nivel = 0 if sem_contato else 1 if est.caidas_agora | int > 0 else 2 if est.dia.outages | int > 0 else 3 if est.semana.outages | int > 0 else 4 %}
+  {% set o = namespace(v='\n## ' ~ nome) %}
+  {% if sem_contato %}
+  {% set o.v = o.v ~ '\n⚫ **Sem contato há ' ~ dur(idade) ~ '** — dados abaixo são de ' ~ quando(sync) %}
+  {% else %}
+  {% set o.v = o.v ~ '\n*Atualizado às ' ~ (as_timestamp(sync, 0) | timestamp_custom('%H:%M')) ~ '*' %}
+  {% endif %}
+  {% for it in its %}
+  {% set o.v = o.v ~ '\n### ' ~ it.integracao ~ ' · ' ~ it.com_problema ~ '/' ~ it.monitoradas ~ ' entidades'
+       ~ ((' · 🔴 ' ~ it.caidas_agora ~ ' caída(s) agora') if it.caidas_agora | int > 0 else '') %}
+  {% if it.semana.outages | int > 0 %}
+  {% set o.v = o.v ~ '\n- Quedas — 24h: ' ~ q(it.dia) ~ ' · 7d: ' ~ q(it.semana) %}
+  {% endif %}
+  {% if it.semana.flickers | int > 0 %}
+  {% set o.v = o.v ~ '\n- ⚡ Flickers — 24h: ' ~ it.dia.flickers ~ ' · 7d: ' ~ it.semana.flickers %}
+  {% endif %}
+  {% for e in it.entidades %}
+  {% set partes = namespace(v=[]) %}
+  {% if e.caida_agora %}
+  {% set partes.v = partes.v + ['caída há ' ~ dur(now_ts - as_timestamp(e.caida_desde, now_ts)) ~ ' (desde ' ~ quando(e.caida_desde) ~ ')'] %}
+  {% endif %}
+  {% if e.semana.outages | int > 0 %}
+  {% set partes.v = partes.v + ['24h: ' ~ q(e.dia) ~ ' · 7d: ' ~ q(e.semana)] %}
+  {% endif %}
+  {% if not e.caida_agora and e.ultima_queda_fim %}
+  {% set partes.v = partes.v + ['última: ' ~ quando(e.ultima_queda_fim)] %}
+  {% endif %}
+  {% if e.semana.flickers | int > 0 %}
+  {% set partes.v = partes.v + ['⚡ 24h: ' ~ e.dia.flickers ~ ' · 7d: ' ~ e.semana.flickers] %}
+  {% endif %}
+  {% set o.v = o.v ~ '\n- ' ~ ('🔴 ' if e.caida_agora else '') ~ '**' ~ e.nome ~ '** — ' ~ (partes.v | join(' · ')) %}
+  {% endfor %}
+  {% if it.entidades_omitidas | int > 0 %}
+  {% set o.v = o.v ~ '\n- *(+' ~ it.entidades_omitidas ~ ' entidades não listadas)*' %}
   {% endif %}
   {% endfor %}
-  {% if vis.items %}
-  {% set any.shown = true %}
-  {% set o.v = o.v ~ '\n## ' ~ (cliente[0] | upper) ~ cliente[1:] %}
-  {% for it in vis.items %}
-  {% set d = it.janela.dia %}
-  {% set w = it.janela.semana %}
-  {% set o.v = o.v ~ '\n### ' ~ (it.integracao[0] | upper) ~ it.integracao[1:]
-    ~ ' — ' ~ it.entidades_afetadas ~ ' entidades' %}
-  {% set o.v = o.v ~ '\n- 🔴 Quedas — Ontem ' ~ d.outages ~ '× (' ~ d.outage_downtime_fmt
-    ~ ') | 7d ' ~ w.outages ~ '× (' ~ w.outage_downtime_fmt ~ ')' %}
-  {% set o.v = o.v ~ '\n- ⚡ Flickers — Ontem ' ~ d.flickers ~ ' | 7d ' ~ w.flickers %}
-  {% set o.v = o.v ~ '\n\n**Entidades mais problemáticas:**' %}
-  {% for e in it.top %}
-  {% set o.v = o.v ~ '\n  • ' ~ e.name ~ ': Ontem ' ~ e.windows.dia.outages
-    ~ '× (' ~ e.windows.dia.outage_downtime_fmt ~ ')' %}
-  {% endfor %}
-  {% set resto = it.entidades_afetadas - (it.top | length) %}
-  {% if resto > 0 %}
-  {% set o.v = o.v ~ '\n  • (+' ~ resto ~ ' entidades)' %}
+  {% if not its %}
+  {% set o.v = o.v ~ '\n- Nenhuma queda nos últimos 7 dias (no último envio).' %}
+  {% endif %}
+  {% set ordem = '%d_%06d_%06d_%s' | format(nivel, 999999 - (est.caidas_agora | int), 999999 - (est.semana.outages | int), cliente) %}
+  {% set ns.blocos = ns.blocos + [{'ordem': ordem, 'v': o.v}] %}
+  {% endif %}
   {% endif %}
   {% endfor %}
-  {% endif %}
-  {% endfor %}
-  {{ o.v if any.shown else o.v ~ '\n✅ Nenhuma queda na última semana.' }}
+  {% set corpo = ns.blocos | sort(attribute='ordem') | map(attribute='v') | join('\n') %}
+  {{ '# 🔎 Monitoramento — detalhe'
+     ~ (corpo if corpo else '\n\n✅ Nenhuma queda nos últimos 7 dias.')
+     ~ (('\n\n---\n⚪ Aguardando Entity Monitor 0.9: ' ~ (ns.aguardando | join(', '))) if ns.aguardando else '') }}

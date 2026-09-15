@@ -30,6 +30,8 @@ from .const import (
     DOMAIN,
     EVENT_MONITOR,
     EVENT_REPORT,
+    MAX_ESTADO_ENTIDADES,
+    MAX_ESTADO_INTEGRACOES,
     MAX_TEXT_LENGTH,
     TOKEN_HEADER,
     signal_new_monitor,
@@ -184,6 +186,33 @@ async def _async_handle_monitor(
     """
     agora = dt_util.now()
     kind = str(data.get("kind", "")).strip()[:10]
+
+    # "estado": estado completo do cliente (Entity Monitor >= 0.9.0). É a
+    # fonte do dashboard: substitui tudo o que havia do cliente. Não é alerta —
+    # não vai pro feed, logbook nem evento.
+    if kind == "estado":
+        estado = _sanitize_estado(data.get("estado"))
+        if estado is None:
+            _LOGGER.warning(
+                "Home360 Monitor: estado inválido recebido de %s", cliente
+            )
+            return
+        _LOGGER.debug(
+            "Home360 Monitor: estado de %s (%s integrações)",
+            cliente,
+            len(estado["integracoes"]),
+        )
+        async_dispatcher_send(
+            hass,
+            signal_new_monitor(entry.entry_id),
+            {
+                "cliente": cliente,
+                "kind": "estado",
+                "estado": estado,
+                "em": agora.isoformat(timespec="seconds"),
+            },
+        )
+        return
     integracao = str(data.get("integracao", "")).strip()[:100]
     entidades = data.get("entidades")
     if not isinstance(entidades, list):
@@ -260,6 +289,103 @@ async def _async_handle_monitor(
     if not is_refresh:
         hass.bus.async_fire(EVENT_MONITOR, alerta)
     async_dispatcher_send(hass, signal_new_monitor(entry.entry_id), alerta)
+
+
+def _to_int(value, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_str(value, limit: int = 100) -> str:
+    return "" if value is None else str(value)[:limit]
+
+
+def _to_iso(value) -> str | None:
+    """Timestamp ISO válido (ou None) — o card faz as_timestamp() nele."""
+    if not value:
+        return None
+    parsed = dt_util.parse_datetime(str(value)[:40])
+    return parsed.isoformat() if parsed is not None else None
+
+
+def _sanitize_window(raw) -> dict:
+    raw = raw if isinstance(raw, dict) else {}
+    return {
+        "outages": _to_int(raw.get("outages")),
+        "outage_downtime": _to_int(raw.get("outage_downtime")),
+        "outage_downtime_fmt": _to_str(raw.get("outage_downtime_fmt"), 10),
+        "flickers": _to_int(raw.get("flickers")),
+        "flicker_downtime": _to_int(raw.get("flicker_downtime")),
+        "flicker_downtime_fmt": _to_str(raw.get("flicker_downtime_fmt"), 10),
+    }
+
+
+def _sanitize_estado(raw) -> dict | None:
+    """Valida e normaliza o estado enviado pelo Entity Monitor.
+
+    Só copia os campos conhecidos, com tipos e tamanhos limitados (o conteúdo
+    vem da internet e vira atributo de sensor lido pelos cards).
+    """
+    if not isinstance(raw, dict):
+        return None
+    integracoes_raw = raw.get("integracoes")
+    if not isinstance(integracoes_raw, list):
+        return None
+
+    integracoes: list[dict] = []
+    for it in integracoes_raw[:MAX_ESTADO_INTEGRACOES]:
+        if not isinstance(it, dict):
+            continue
+        entidades: list[dict] = []
+        ents_raw = it.get("entidades")
+        for ent in (ents_raw if isinstance(ents_raw, list) else [])[
+            :MAX_ESTADO_ENTIDADES
+        ]:
+            if not isinstance(ent, dict):
+                continue
+            entidades.append(
+                {
+                    "entity_id": _to_str(ent.get("entity_id")),
+                    "nome": _to_str(ent.get("nome")) or _to_str(ent.get("entity_id")),
+                    "caida_agora": bool(ent.get("caida_agora")),
+                    "caida_desde": _to_iso(ent.get("caida_desde")),
+                    "dia": _sanitize_window(ent.get("dia")),
+                    "semana": _sanitize_window(ent.get("semana")),
+                    "ultima_queda_inicio": _to_iso(ent.get("ultima_queda_inicio")),
+                    "ultima_queda_fim": _to_iso(ent.get("ultima_queda_fim")),
+                }
+            )
+        integracoes.append(
+            {
+                "integracao": _to_str(it.get("integracao")) or "?",
+                "slug": _to_str(it.get("slug")),
+                "monitoradas": _to_int(it.get("monitoradas")),
+                "caidas_agora": _to_int(it.get("caidas_agora")),
+                "com_problema": _to_int(it.get("com_problema")),
+                "dia": _sanitize_window(it.get("dia")),
+                "semana": _sanitize_window(it.get("semana")),
+                "entidades": entidades,
+                "entidades_omitidas": max(
+                    0, _to_int(it.get("com_problema")) - len(entidades)
+                ),
+            }
+        )
+
+    return {
+        "versao": _to_int(raw.get("versao"), 1),
+        "gerado_em": _to_iso(raw.get("gerado_em")),
+        "janela_dia_horas": _to_int(raw.get("janela_dia_horas"), 24),
+        "janela_semana_dias": _to_int(raw.get("janela_semana_dias"), 7),
+        "limiar_segundos": _to_int(raw.get("limiar_segundos")),
+        "monitoradas": _to_int(raw.get("monitoradas")),
+        "caidas_agora": _to_int(raw.get("caidas_agora")),
+        "dia": _sanitize_window(raw.get("dia")),
+        "semana": _sanitize_window(raw.get("semana")),
+        "integracoes": integracoes,
+        "entidades_omitidas": _to_int(raw.get("entidades_omitidas")),
+    }
 
 
 async def _async_push(

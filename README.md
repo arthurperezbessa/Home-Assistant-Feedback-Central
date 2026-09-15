@@ -68,11 +68,32 @@ Além do feedback dos clientes, o central recebe **alertas de indisponibilidade*
 da integração [Entity Monitor](https://github.com/arthurperezbessa/Entity-Monitor)
 instalada em cada cliente — em vez de notificações no celular, viram um dashboard.
 
-- A Entity Monitor manda cada **N1/N2/N3** para o mesmo webhook, com `tipo: "monitor"`,
-  usando o **mesmo `client_id` e token** daquele cliente.
+- A Entity Monitor manda para o mesmo webhook, com `tipo: "monitor"`, usando o
+  **mesmo `client_id` e token** daquele cliente.
 - O central valida o token e atualiza o `sensor.feedback_<cliente>_monitoramento`
   (sem push, sem notificação persistente — o canal é o dashboard).
-- Registra no **logbook** para histórico.
+
+Dois tipos de mensagem:
+
+- **`kind: "estado"`** (Entity Monitor ≥ 0.9.0) — **fonte do dashboard**. Estado
+  completo do cliente em janelas corridas (últimas 24h e 7 dias): quedas, tempo
+  offline, flickers, entidades caídas agora, por integração e por entidade. Chega
+  a cada 30 min e após cada queda/recuperação. O central **substitui** o atributo
+  `estado` inteiro e grava `sincronizado_em` (hora do central). Não conta como
+  alerta nem vai para o logbook. Os atributos grandes ficam fora do recorder.
+- **N1/N2/N3** — alertas; vão para `ultimos_alertas` (feed) e para o **logbook**.
+
+Cards prontos (auto-descobrem os clientes):
+
+- `card_dashboard_monitoramento_todos.yaml` — resumo, 1 linha por cliente, pior no
+  topo: ⚫ sem contato (> 1h sem estado) · 🔴 caída agora · 🟠 queda 24h ·
+  🟡 queda 7d · ⚪ aguardando Entity Monitor 0.9 · 🟢 OK.
+- `card_monitoramento_janelas_bubble.yaml` — detalhe cliente → integração →
+  entidade, com flickers à parte e a hora da última atualização.
+
+Clientes ainda na Entity Monitor < 0.9.0 continuam aceitos (o legado
+`janelas_por_integracao` segue sendo gravado), mas aparecem nos cards como
+⚪ aguardando até atualizarem.
 
 ---
 

@@ -26,6 +26,11 @@ CATEGORIES: list[str] = [
 # Limite de tamanho do texto do report (defesa contra abuso).
 MAX_TEXT_LENGTH = 500
 
+# Limites do estado de monitoramento aceito por cliente (defesa contra abuso;
+# o Entity Monitor manda no máximo 30 entidades no total).
+MAX_ESTADO_INTEGRACOES = 30
+MAX_ESTADO_ENTIDADES = 50
+
 # Evento disparado a cada report válido (para automações do usuário).
 EVENT_REPORT = f"{DOMAIN}_report"
 
