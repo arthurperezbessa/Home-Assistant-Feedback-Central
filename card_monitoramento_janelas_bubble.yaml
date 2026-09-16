@@ -11,8 +11,10 @@
 #  - clientes SEM CONTATO (> SEM_CONTATO_H sem estado), com os últimos dados
 #    recebidos e a hora em que chegaram;
 #  - por integração: quedas 24h/7d, flickers à parte, caídas agora;
-#  - por entidade (as piores, até 30 por cliente): caída agora (há quanto
-#    tempo), quedas 24h/7d, última queda e flickers.
+#  - por entidade: só as 3 que ficaram MAIS TEMPO FORA nas últimas 24h
+#    (caída agora conta até o momento), com caída agora (há quanto tempo),
+#    quedas 24h/7d, última queda e flickers. As demais viram "(+N outras)";
+#  - separador (---) entre clientes.
 #
 # 1 queda = 1 entidade unavailable por >= 30s. Flicker = voltou antes disso.
 #
@@ -57,7 +59,12 @@ content: >
   {% if it.semana.flickers | int > 0 %}
   {% set o.v = o.v ~ '\n- ⚡ Flickers — 24h: ' ~ it.dia.flickers ~ ' · 7d: ' ~ it.semana.flickers %}
   {% endif %}
-  {% for e in it.entidades %}
+  {% set top = it.entidades | selectattr('dia.outage_downtime', 'gt', 0) | sort(attribute='dia.outage_downtime', reverse=true) | list %}
+  {% set top = top[:3] %}
+  {% if not top %}
+  {% set o.v = o.v ~ '\n- Nenhuma entidade fora nas últimas 24h.' %}
+  {% endif %}
+  {% for e in top %}
   {% set partes = namespace(v=[]) %}
   {% if e.caida_agora %}
   {% set partes.v = partes.v + ['caída há ' ~ dur(now_ts - as_timestamp(e.caida_desde, now_ts)) ~ ' (desde ' ~ quando(e.caida_desde) ~ ')'] %}
@@ -73,8 +80,9 @@ content: >
   {% endif %}
   {% set o.v = o.v ~ '\n- ' ~ ('🔴 ' if e.caida_agora else '') ~ '**' ~ e.nome ~ '** — ' ~ (partes.v | join(' · ')) %}
   {% endfor %}
-  {% if it.entidades_omitidas | int > 0 %}
-  {% set o.v = o.v ~ '\n- *(+' ~ it.entidades_omitidas ~ ' entidades não listadas)*' %}
+  {% set resto = (it.com_problema | int) - (top | length) %}
+  {% if resto > 0 %}
+  {% set o.v = o.v ~ '\n- *(+' ~ resto ~ (' outras entidades' if resto > 1 else ' outra entidade') ~ ' com queda/flicker em 7d)*' %}
   {% endif %}
   {% endfor %}
   {% if not its %}
@@ -85,7 +93,7 @@ content: >
   {% endif %}
   {% endif %}
   {% endfor %}
-  {% set corpo = ns.blocos | sort(attribute='ordem') | map(attribute='v') | join('\n') %}
+  {% set corpo = ns.blocos | sort(attribute='ordem') | map(attribute='v') | join('\n\n---\n') %}
   {{ '# 🔎 Monitoramento — detalhe'
      ~ (corpo if corpo else '\n\n✅ Nenhuma queda nos últimos 7 dias.')
      ~ (('\n\n---\n⚪ Aguardando Entity Monitor 0.9: ' ~ (ns.aguardando | join(', '))) if ns.aguardando else '') }}
