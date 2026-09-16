@@ -48,7 +48,7 @@ content: >
   {% if sem_contato %}
   {% set o.v = o.v ~ '\n⚫ **Sem contato há ' ~ dur(idade) ~ '** — dados abaixo são de ' ~ quando(sync) %}
   {% else %}
-  {% set o.v = o.v ~ '\n*Atualizado às ' ~ (as_timestamp(sync, 0) | timestamp_custom('%H:%M')) ~ '*' %}
+  {% set o.v = o.v ~ ' · *Atualizado às ' ~ (as_timestamp(sync, 0) | timestamp_custom('%H:%M')) ~ '*' %}
   {% endif %}
   {% for it in its %}
   {% set o.v = o.v ~ '\n### ' ~ it.integracao ~ ' · ' ~ it.com_problema ~ '/' ~ it.monitoradas ~ ' entidades'
