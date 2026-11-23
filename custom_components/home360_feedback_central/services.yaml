@@ -1,0 +1,5 @@
+send_daily_digest:
+  name: Enviar resumo de monitoramento
+  description: >-
+    Monta e envia agora o resumo diário de monitoramento (1 notificação por
+    cliente com problema), para testar sem esperar o horário configurado.

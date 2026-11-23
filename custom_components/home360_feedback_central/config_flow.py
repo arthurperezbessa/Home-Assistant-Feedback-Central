@@ -20,8 +20,17 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_CLIENTS,
+    CONF_DIGEST_ENABLED,
+    CONF_DIGEST_HOUR,
+    CONF_DIGEST_MIN_MINUTES,
+    CONF_DIGEST_MINUTE,
+    CONF_DIGEST_NOTIFY_SERVICE,
     CONF_NOTIFY_SERVICE,
     CONF_WEBHOOK_ID,
+    DEFAULT_DIGEST_ENABLED,
+    DEFAULT_DIGEST_HOUR,
+    DEFAULT_DIGEST_MIN_MINUTES,
+    DEFAULT_DIGEST_MINUTE,
     DOMAIN,
 )
 
@@ -87,15 +96,45 @@ class Home360CentralOptionsFlow(OptionsFlow):
             "clients": dict(
                 opts.get(CONF_CLIENTS, data.get(CONF_CLIENTS, {}))
             ),
+            CONF_DIGEST_ENABLED: bool(
+                opts.get(CONF_DIGEST_ENABLED, DEFAULT_DIGEST_ENABLED)
+            ),
+            CONF_DIGEST_HOUR: int(
+                opts.get(CONF_DIGEST_HOUR, DEFAULT_DIGEST_HOUR)
+            ),
+            CONF_DIGEST_MINUTE: int(
+                opts.get(CONF_DIGEST_MINUTE, DEFAULT_DIGEST_MINUTE)
+            ),
+            CONF_DIGEST_MIN_MINUTES: int(
+                opts.get(CONF_DIGEST_MIN_MINUTES, DEFAULT_DIGEST_MIN_MINUTES)
+            ),
+            CONF_DIGEST_NOTIFY_SERVICE: opts.get(
+                CONF_DIGEST_NOTIFY_SERVICE, ""
+            ),
         }
 
-    def _save(self, notify_service: str, clients: dict) -> ConfigFlowResult:
+    def _save(
+        self,
+        notify_service: str,
+        clients: dict,
+        digest: dict | None = None,
+    ) -> ConfigFlowResult:
         """Grava o conjunto completo de options (substitui as anteriores)."""
+        cur = self._current()
+        base = {
+            CONF_DIGEST_ENABLED: cur[CONF_DIGEST_ENABLED],
+            CONF_DIGEST_HOUR: cur[CONF_DIGEST_HOUR],
+            CONF_DIGEST_MINUTE: cur[CONF_DIGEST_MINUTE],
+            CONF_DIGEST_MIN_MINUTES: cur[CONF_DIGEST_MIN_MINUTES],
+            CONF_DIGEST_NOTIFY_SERVICE: cur[CONF_DIGEST_NOTIFY_SERVICE],
+        }
+        base.update(digest or {})
         return self.async_create_entry(
             title="",
             data={
                 CONF_NOTIFY_SERVICE: notify_service,
                 CONF_CLIENTS: clients,
+                **base,
             },
         )
 
@@ -105,8 +144,62 @@ class Home360CentralOptionsFlow(OptionsFlow):
         """Menu principal."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_client", "remove_client", "notify", "info"],
+            menu_options=[
+                "add_client",
+                "remove_client",
+                "notify",
+                "digest",
+                "info",
+            ],
         )
+
+    async def async_step_digest(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Resumo diário de monitoramento (1 push por cliente)."""
+        cur = self._current()
+
+        if user_input is not None:
+            return self._save(
+                cur["notify_service"],
+                cur["clients"],
+                {
+                    CONF_DIGEST_ENABLED: bool(
+                        user_input.get(CONF_DIGEST_ENABLED, True)
+                    ),
+                    CONF_DIGEST_HOUR: int(user_input[CONF_DIGEST_HOUR]),
+                    CONF_DIGEST_MINUTE: int(user_input[CONF_DIGEST_MINUTE]),
+                    CONF_DIGEST_MIN_MINUTES: int(
+                        user_input[CONF_DIGEST_MIN_MINUTES]
+                    ),
+                    CONF_DIGEST_NOTIFY_SERVICE: user_input.get(
+                        CONF_DIGEST_NOTIFY_SERVICE, ""
+                    ).strip(),
+                },
+            )
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_DIGEST_ENABLED, default=cur[CONF_DIGEST_ENABLED]
+                ): bool,
+                vol.Required(
+                    CONF_DIGEST_HOUR, default=cur[CONF_DIGEST_HOUR]
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=23)),
+                vol.Required(
+                    CONF_DIGEST_MINUTE, default=cur[CONF_DIGEST_MINUTE]
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=59)),
+                vol.Required(
+                    CONF_DIGEST_MIN_MINUTES,
+                    default=cur[CONF_DIGEST_MIN_MINUTES],
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+                vol.Optional(
+                    CONF_DIGEST_NOTIFY_SERVICE,
+                    default=cur[CONF_DIGEST_NOTIFY_SERVICE],
+                ): str,
+            }
+        )
+        return self.async_show_form(step_id="digest", data_schema=schema)
 
     async def async_step_add_client(
         self, user_input: dict[str, Any] | None = None

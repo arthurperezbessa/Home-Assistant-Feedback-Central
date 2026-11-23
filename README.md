@@ -83,6 +83,37 @@ Dois tipos de mensagem:
   alerta nem vai para o logbook. Os atributos grandes ficam fora do recorder.
 - **N1/N2/N3** — alertas; vão para `ultimos_alertas` (feed) e para o **logbook**.
 
+### Resumo diário no celular (9:30)
+
+Todo dia, no horário configurado, o central manda **uma notificação por
+cliente** — só para quem tem algo a reportar. Em **Configurar → Resumo diário de
+monitoramento** dá para mudar hora, minuto, o corte de tempo e o serviço de push
+(em branco usa o mesmo do feedback), ou desligar.
+
+Entram na notificação as integrações que tiveram **alguma entidade indisponível
+por pelo menos 10 minutos contínuos** (valor configurável) nas últimas 24h. Por
+integração aparece a entidade que mais tempo ficou fora e, abaixo, a que mais
+deu flicker:
+
+```
+🔴 Caída agora · Ramiro
+Sonoff · Portão 3h (caída agora)
+Tuya · Luz Quarto 25m (1 queda)
+  ⚡ Luz Corredor: 8 flickers
+```
+
+- **10 min contínuos**, não somados: 5 quedas de 3 min não entram; 1 queda de
+  25 min entra. Queda em andamento conta com o tempo até agora.
+- **Cliente sem nada a reportar** não gera notificação.
+- **Cliente sem contato** (nenhum estado há mais de 1h) gera um alerta próprio,
+  no topo.
+- A notificação do dia **substitui** a do dia anterior no celular (uma tag por
+  cliente).
+- Para testar sem esperar o horário, chame o serviço
+  **`home360_feedback_central.send_daily_digest`**.
+- Com clientes em Entity Monitor < 0.11.0 o corte usa o tempo **somado** nas 24h
+  (o dado da maior queda contínua ainda não é enviado por eles).
+
 Cards prontos (auto-descobrem os clientes):
 
 - `card_dashboard_monitoramento_todos.yaml` — resumo, 1 linha por cliente, pior no

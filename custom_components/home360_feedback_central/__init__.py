@@ -20,23 +20,35 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.util import dt as dt_util
 
 from .const import (
     CATEGORIES,
     CONF_CLIENTS,
+    CONF_DIGEST_ENABLED,
+    CONF_DIGEST_HOUR,
+    CONF_DIGEST_MIN_MINUTES,
+    CONF_DIGEST_MINUTE,
+    CONF_DIGEST_NOTIFY_SERVICE,
     CONF_NOTIFY_SERVICE,
     CONF_WEBHOOK_ID,
+    DEFAULT_DIGEST_ENABLED,
+    DEFAULT_DIGEST_HOUR,
+    DEFAULT_DIGEST_MIN_MINUTES,
+    DEFAULT_DIGEST_MINUTE,
     DOMAIN,
     EVENT_MONITOR,
     EVENT_REPORT,
     MAX_ESTADO_ENTIDADES,
     MAX_ESTADO_INTEGRACOES,
     MAX_TEXT_LENGTH,
+    SERVICE_SEND_DIGEST,
     TOKEN_HEADER,
     signal_new_monitor,
     signal_new_report,
 )
+from .digest import async_send_digest
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +65,21 @@ def get_config(entry: ConfigEntry) -> dict:
             CONF_NOTIFY_SERVICE, data.get(CONF_NOTIFY_SERVICE, "")
         ),
         "clients": opts.get(CONF_CLIENTS, data.get(CONF_CLIENTS, {})),
+        "digest_enabled": bool(
+            opts.get(CONF_DIGEST_ENABLED, DEFAULT_DIGEST_ENABLED)
+        ),
+        "digest_hour": int(opts.get(CONF_DIGEST_HOUR, DEFAULT_DIGEST_HOUR)),
+        "digest_minute": int(
+            opts.get(CONF_DIGEST_MINUTE, DEFAULT_DIGEST_MINUTE)
+        ),
+        "digest_min_minutes": int(
+            opts.get(CONF_DIGEST_MIN_MINUTES, DEFAULT_DIGEST_MIN_MINUTES)
+        ),
+        # Em branco = usa o mesmo serviço de push do feedback.
+        "digest_notify_service": (
+            opts.get(CONF_DIGEST_NOTIFY_SERVICE, "")
+            or opts.get(CONF_NOTIFY_SERVICE, data.get(CONF_NOTIFY_SERVICE, ""))
+        ),
     }
 
 
@@ -78,6 +105,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Resumo diário de monitoramento (1 push por cliente com problema).
+    if cfg["digest_enabled"]:
+        async def _digest_tick(_now) -> None:
+            atual = get_config(entry)
+            await async_send_digest(
+                hass,
+                entry,
+                atual["digest_notify_service"],
+                atual["digest_min_minutes"],
+            )
+
+        entry.async_on_unload(
+            async_track_time_change(
+                hass,
+                _digest_tick,
+                hour=cfg["digest_hour"],
+                minute=cfg["digest_minute"],
+                second=0,
+            )
+        )
+
+    async def _send_digest_now(call) -> None:
+        """Serviço: monta e envia o resumo agora (para testar)."""
+        atual = get_config(entry)
+        await async_send_digest(
+            hass,
+            entry,
+            atual["digest_notify_service"],
+            atual["digest_min_minutes"],
+        )
+
+    hass.services.async_register(DOMAIN, SERVICE_SEND_DIGEST, _send_digest_now)
+
     # Recarrega a integração quando as options mudam (novo cliente, etc.).
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
@@ -86,6 +146,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Remove a integração central."""
     webhook.async_unregister(hass, get_config(entry)["webhook_id"])
+    hass.services.async_remove(DOMAIN, SERVICE_SEND_DIGEST)
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 

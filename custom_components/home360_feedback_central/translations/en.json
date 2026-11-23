@@ -21,6 +21,7 @@
           "add_client": "Add client",
           "remove_client": "Remove client",
           "notify": "Change push service",
+          "digest": "Daily monitoring digest",
           "info": "Show URL and tokens"
         }
       },
@@ -44,6 +45,17 @@
           "notify_service": "Notification service (e.g. notify.mobile_app_your_phone)"
         }
       },
+      "digest": {
+        "title": "Daily monitoring digest",
+        "description": "One notification per client, listing the integrations that had an entity unavailable for the continuous time set below in the last 24h. Clients with nothing to report send no notification; a client out of contact gets its own alert.",
+        "data": {
+          "digest_enabled": "Send the daily digest",
+          "digest_hour": "Hour (0-23, local time)",
+          "digest_minute": "Minute (0-59)",
+          "digest_min_minutes": "Minimum unavailable time to be listed (continuous minutes)",
+          "digest_notify_service": "Digest notify service (empty = same as feedback)"
+        }
+      },
       "info": {
         "title": "Configuration data",
         "description": "{info}"
@@ -59,8 +71,18 @@
   },
   "entity": {
     "sensor": {
-      "ultimo_report": { "name": "Last report" },
-      "monitoramento": { "name": "Monitoring" }
+      "ultimo_report": {
+        "name": "Last report"
+      },
+      "monitoramento": {
+        "name": "Monitoring"
+      }
+    }
+  },
+  "services": {
+    "send_daily_digest": {
+      "name": "Send monitoring digest",
+      "description": "Builds and sends the daily digest right now (one notification per client with a problem), to test without waiting for the scheduled time."
     }
   }
 }

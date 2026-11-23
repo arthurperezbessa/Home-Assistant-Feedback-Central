@@ -21,6 +21,7 @@
           "add_client": "Adicionar cliente",
           "remove_client": "Remover cliente",
           "notify": "Alterar serviço de push",
+          "digest": "Resumo diário de monitoramento",
           "info": "Ver URL e tokens"
         }
       },
@@ -44,6 +45,17 @@
           "notify_service": "Serviço de notificação (ex.: notify.mobile_app_seu_celular)"
         }
       },
+      "digest": {
+        "title": "Resumo diário de monitoramento",
+        "description": "Uma notificação por cliente, listando as integrações que tiveram entidade indisponível pelo tempo contínuo definido abaixo nas últimas 24h. Cliente sem nada a reportar não gera notificação; cliente sem contato gera um alerta próprio.",
+        "data": {
+          "digest_enabled": "Enviar o resumo diário",
+          "digest_hour": "Hora (0-23, horário local)",
+          "digest_minute": "Minuto (0-59)",
+          "digest_min_minutes": "Tempo mínimo indisponível para entrar (minutos contínuos)",
+          "digest_notify_service": "Serviço de notificação do resumo (vazio = o mesmo do feedback)"
+        }
+      },
       "info": {
         "title": "Dados de configuração",
         "description": "{info}"
@@ -59,8 +71,18 @@
   },
   "entity": {
     "sensor": {
-      "ultimo_report": { "name": "Último report" },
-      "monitoramento": { "name": "Monitoramento" }
+      "ultimo_report": {
+        "name": "Último report"
+      },
+      "monitoramento": {
+        "name": "Monitoramento"
+      }
+    }
+  },
+  "services": {
+    "send_daily_digest": {
+      "name": "Enviar resumo de monitoramento",
+      "description": "Monta e envia agora o resumo diário (1 notificação por cliente com problema), para testar sem esperar o horário."
     }
   }
 }

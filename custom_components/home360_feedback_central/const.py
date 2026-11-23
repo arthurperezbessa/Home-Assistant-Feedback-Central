@@ -9,6 +9,22 @@ CONF_WEBHOOK_ID = "webhook_id"
 CONF_NOTIFY_SERVICE = "notify_service"
 CONF_CLIENTS = "clients"
 
+# Resumo diário de monitoramento (1 push por cliente com problema).
+CONF_DIGEST_ENABLED = "digest_enabled"
+CONF_DIGEST_HOUR = "digest_hour"
+CONF_DIGEST_MINUTE = "digest_minute"
+CONF_DIGEST_MIN_MINUTES = "digest_min_minutes"
+CONF_DIGEST_NOTIFY_SERVICE = "digest_notify_service"
+
+DEFAULT_DIGEST_ENABLED = True
+DEFAULT_DIGEST_HOUR = 9
+DEFAULT_DIGEST_MINUTE = 30
+# Só entra no resumo a entidade que ficou indisponível por pelo menos este
+# tempo CONTÍNUO (uma única queda) nas últimas 24h.
+DEFAULT_DIGEST_MIN_MINUTES = 10
+# Acima disto o cliente é tratado como "sem contato" no resumo (horas).
+DIGEST_STALE_HOURS = 1
+
 # Header HTTP que carrega o token do cliente.
 TOKEN_HEADER = "X-Home360-Token"
 
@@ -47,3 +63,6 @@ def signal_new_monitor(entry_id: str) -> str:
 
 # Evento disparado a cada alerta de monitoramento válido.
 EVENT_MONITOR = f"{DOMAIN}_monitor"
+
+# Serviço que monta e envia o resumo diário na hora (para testar).
+SERVICE_SEND_DIGEST = "send_daily_digest"
