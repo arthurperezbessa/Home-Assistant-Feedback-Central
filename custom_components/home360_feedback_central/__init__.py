@@ -28,6 +28,7 @@ from .const import (
     CONF_CLIENTS,
     CONF_DIGEST_ENABLED,
     CONF_DIGEST_HOUR,
+    CONF_DIGEST_MIN_FLICKERS,
     CONF_DIGEST_MIN_MINUTES,
     CONF_DIGEST_MINUTE,
     CONF_DIGEST_NOTIFY_SERVICE,
@@ -35,6 +36,7 @@ from .const import (
     CONF_WEBHOOK_ID,
     DEFAULT_DIGEST_ENABLED,
     DEFAULT_DIGEST_HOUR,
+    DEFAULT_DIGEST_MIN_FLICKERS,
     DEFAULT_DIGEST_MIN_MINUTES,
     DEFAULT_DIGEST_MINUTE,
     DOMAIN,
@@ -75,6 +77,9 @@ def get_config(entry: ConfigEntry) -> dict:
         "digest_min_minutes": int(
             opts.get(CONF_DIGEST_MIN_MINUTES, DEFAULT_DIGEST_MIN_MINUTES)
         ),
+        "digest_min_flickers": int(
+            opts.get(CONF_DIGEST_MIN_FLICKERS, DEFAULT_DIGEST_MIN_FLICKERS)
+        ),
         # Em branco = usa o mesmo serviço de push do feedback.
         "digest_notify_service": (
             opts.get(CONF_DIGEST_NOTIFY_SERVICE, "")
@@ -114,6 +119,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 entry,
                 atual["digest_notify_service"],
                 atual["digest_min_minutes"],
+                atual["digest_min_flickers"],
             )
 
         entry.async_on_unload(
@@ -134,6 +140,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry,
             atual["digest_notify_service"],
             atual["digest_min_minutes"],
+            atual["digest_min_flickers"],
         )
 
     hass.services.async_register(DOMAIN, SERVICE_SEND_DIGEST, _send_digest_now)

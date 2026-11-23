@@ -87,13 +87,18 @@ Dois tipos de mensagem:
 
 Todo dia, no horário configurado, o central manda **uma notificação por
 cliente** — só para quem tem algo a reportar. Em **Configurar → Resumo diário de
-monitoramento** dá para mudar hora, minuto, o corte de tempo e o serviço de push
+monitoramento** dá para mudar hora, minuto, os cortes e o serviço de push
 (em branco usa o mesmo do feedback), ou desligar.
 
-Entram na notificação as integrações que tiveram **alguma entidade indisponível
-por pelo menos 10 minutos contínuos** (valor configurável) nas últimas 24h. Por
-integração aparece a entidade que mais tempo ficou fora e, abaixo, a que mais
-deu flicker:
+Uma integração entra na notificação de duas formas:
+
+- **por queda** — teve alguma entidade **indisponível por pelo menos 10 minutos
+  contínuos** (configurável) nas últimas 24h;
+- **por flicker** — não teve queda que passe o corte, mas a entidade com mais
+  flickers somou **15 ou mais** (configurável; `0` desliga esse caminho).
+
+Em cada integração aparece a entidade que mais tempo ficou fora e, abaixo, a que
+mais deu flicker:
 
 ```
 🔴 Caída agora · Ramiro
@@ -102,8 +107,17 @@ Tuya · Luz Quarto 25m (1 queda)
   ⚡ Luz Corredor: 8 flickers
 ```
 
+```
+⚡ Flickers em 24h · Zeca
+⚡ Zigbee · Sensor Porta: 18 flickers
+```
+
 - **10 min contínuos**, não somados: 5 quedas de 3 min não entram; 1 queda de
   25 min entra. Queda em andamento conta com o tempo até agora.
+- Integração que entrou **por queda** mostra o flicker como detalhe, com
+  qualquer quantidade — o corte de 15 vale só para entrar sozinha.
+- Título: 🔴 há entidade caída agora · 🟠 só quedas já recuperadas ·
+  ⚡ só flickers · ⚫ sem contato.
 - **Cliente sem nada a reportar** não gera notificação.
 - **Cliente sem contato** (nenhum estado há mais de 1h) gera um alerta próprio,
   no topo.

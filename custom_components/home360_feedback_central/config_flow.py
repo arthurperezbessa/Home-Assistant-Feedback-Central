@@ -22,6 +22,7 @@ from .const import (
     CONF_CLIENTS,
     CONF_DIGEST_ENABLED,
     CONF_DIGEST_HOUR,
+    CONF_DIGEST_MIN_FLICKERS,
     CONF_DIGEST_MIN_MINUTES,
     CONF_DIGEST_MINUTE,
     CONF_DIGEST_NOTIFY_SERVICE,
@@ -29,6 +30,7 @@ from .const import (
     CONF_WEBHOOK_ID,
     DEFAULT_DIGEST_ENABLED,
     DEFAULT_DIGEST_HOUR,
+    DEFAULT_DIGEST_MIN_FLICKERS,
     DEFAULT_DIGEST_MIN_MINUTES,
     DEFAULT_DIGEST_MINUTE,
     DOMAIN,
@@ -108,6 +110,11 @@ class Home360CentralOptionsFlow(OptionsFlow):
             CONF_DIGEST_MIN_MINUTES: int(
                 opts.get(CONF_DIGEST_MIN_MINUTES, DEFAULT_DIGEST_MIN_MINUTES)
             ),
+            CONF_DIGEST_MIN_FLICKERS: int(
+                opts.get(
+                    CONF_DIGEST_MIN_FLICKERS, DEFAULT_DIGEST_MIN_FLICKERS
+                )
+            ),
             CONF_DIGEST_NOTIFY_SERVICE: opts.get(
                 CONF_DIGEST_NOTIFY_SERVICE, ""
             ),
@@ -126,6 +133,7 @@ class Home360CentralOptionsFlow(OptionsFlow):
             CONF_DIGEST_HOUR: cur[CONF_DIGEST_HOUR],
             CONF_DIGEST_MINUTE: cur[CONF_DIGEST_MINUTE],
             CONF_DIGEST_MIN_MINUTES: cur[CONF_DIGEST_MIN_MINUTES],
+            CONF_DIGEST_MIN_FLICKERS: cur[CONF_DIGEST_MIN_FLICKERS],
             CONF_DIGEST_NOTIFY_SERVICE: cur[CONF_DIGEST_NOTIFY_SERVICE],
         }
         base.update(digest or {})
@@ -172,6 +180,9 @@ class Home360CentralOptionsFlow(OptionsFlow):
                     CONF_DIGEST_MIN_MINUTES: int(
                         user_input[CONF_DIGEST_MIN_MINUTES]
                     ),
+                    CONF_DIGEST_MIN_FLICKERS: int(
+                        user_input[CONF_DIGEST_MIN_FLICKERS]
+                    ),
                     CONF_DIGEST_NOTIFY_SERVICE: user_input.get(
                         CONF_DIGEST_NOTIFY_SERVICE, ""
                     ).strip(),
@@ -193,6 +204,10 @@ class Home360CentralOptionsFlow(OptionsFlow):
                     CONF_DIGEST_MIN_MINUTES,
                     default=cur[CONF_DIGEST_MIN_MINUTES],
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1440)),
+                vol.Required(
+                    CONF_DIGEST_MIN_FLICKERS,
+                    default=cur[CONF_DIGEST_MIN_FLICKERS],
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1000)),
                 vol.Optional(
                     CONF_DIGEST_NOTIFY_SERVICE,
                     default=cur[CONF_DIGEST_NOTIFY_SERVICE],

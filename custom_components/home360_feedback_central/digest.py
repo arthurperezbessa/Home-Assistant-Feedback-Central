@@ -4,7 +4,9 @@ Lê o atributo `estado` de cada `sensor.feedback_<cliente>_monitoring` (enviado
 pelo Entity Monitor) e monta uma notificação por cliente listando as
 integrações que tiveram **alguma entidade indisponível por pelo menos N
 minutos contínuos** nas últimas 24h. Para cada integração mostra a entidade que
-mais tempo ficou fora e a que mais deu flicker.
+mais tempo ficou fora e a que mais deu flicker. Integração sem queda que passe
+o corte entra pelo flicker, se a pior entidade dela tiver pelo menos
+`min_flickers` flickers no período.
 
 Cliente sem estado recente (HA ou internet fora do ar) gera um alerta próprio.
 Cliente sem nada a reportar não gera notificação.
@@ -146,7 +148,11 @@ def _linha_queda(integracao: str, pior: dict) -> str:
 
 
 def build_client_digest(
-    estado: dict, sincronizado_em: str | None, min_minutes: int, now
+    estado: dict,
+    sincronizado_em: str | None,
+    min_minutes: int,
+    now,
+    min_flickers: int = 0,
 ) -> dict | None:
     """Monta o resumo de um cliente, ou None se não há nada a reportar.
 
@@ -174,26 +180,41 @@ def build_client_digest(
 
     min_seconds = max(0, min_minutes) * 60
     linhas: list[str] = []
+    tem_queda = False
     integracoes = estado.get("integracoes")
     for integ in integracoes if isinstance(integracoes, list) else []:
         if not isinstance(integ, dict):
             continue
-        pior = _pior_queda(integ, min_seconds)
-        if pior is None:
-            continue
         nome_integ = str(integ.get("integracao") or integ.get("slug") or "?")
-        linhas.append(_linha_queda(nome_integ, pior))
+        pior = _pior_queda(integ, min_seconds)
         flicker = _pior_flicker(integ)
-        if flicker is not None:
+
+        if pior is not None:
+            # Integração entrou pela queda: o flicker vem como detalhe dela,
+            # com qualquer quantidade.
+            tem_queda = True
+            linhas.append(_linha_queda(nome_integ, pior))
+            if flicker is not None:
+                linhas.append(
+                    f"  ⚡ {flicker['nome']}: {flicker['flickers']} flickers"
+                )
+        elif flicker is not None and flicker["flickers"] >= min_flickers > 0:
+            # Sem queda que passe o corte, mas flicker suficiente para entrar
+            # por conta própria.
             linhas.append(
-                f"  ⚡ {flicker['nome']}: {flicker['flickers']} flickers"
+                f"⚡ {nome_integ} · {flicker['nome']}: "
+                f"{flicker['flickers']} flickers"
             )
 
     if not linhas:
         return None
 
-    caidas = _int(estado.get("caidas_agora"))
-    titulo = "🔴 Caída agora" if caidas else "🟠 Quedas em 24h"
+    if _int(estado.get("caidas_agora")):
+        titulo = "🔴 Caída agora"
+    elif tem_queda:
+        titulo = "🟠 Quedas em 24h"
+    else:
+        titulo = "⚡ Flickers em 24h"
     return {
         "tipo": "quedas",
         "titulo": titulo,
@@ -202,7 +223,10 @@ def build_client_digest(
 
 
 def build_digest(
-    hass: HomeAssistant, entry: ConfigEntry, min_minutes: int
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    min_minutes: int,
+    min_flickers: int = 0,
 ) -> list[dict]:
     """Resumos a enviar agora, um por cliente com algo a reportar."""
     now = dt_util.now()
@@ -221,6 +245,7 @@ def build_digest(
             state.attributes.get("sincronizado_em"),
             min_minutes,
             now,
+            min_flickers,
         )
         if resumo is None:
             continue
@@ -243,9 +268,10 @@ async def async_send_digest(
     entry: ConfigEntry,
     notify_service: str,
     min_minutes: int,
+    min_flickers: int = 0,
 ) -> int:
     """Envia o resumo diário. Retorna quantos clientes foram notificados."""
-    resumos = build_digest(hass, entry, min_minutes)
+    resumos = build_digest(hass, entry, min_minutes, min_flickers)
     if not resumos:
         _LOGGER.info("Home360 Monitor: resumo diário sem nada a reportar")
         return 0

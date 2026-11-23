@@ -53,6 +53,7 @@
           "digest_hour": "Hora (0-23, horário local)",
           "digest_minute": "Minuto (0-59)",
           "digest_min_minutes": "Tempo mínimo indisponível para entrar (minutos contínuos)",
+          "digest_min_flickers": "Mínimo de flickers para a integração entrar sozinha (0 = não entra)",
           "digest_notify_service": "Serviço de notificação do resumo (vazio = o mesmo do feedback)"
         }
       },

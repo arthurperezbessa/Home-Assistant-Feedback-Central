@@ -53,6 +53,7 @@
           "digest_hour": "Hour (0-23, local time)",
           "digest_minute": "Minute (0-59)",
           "digest_min_minutes": "Minimum unavailable time to be listed (continuous minutes)",
+          "digest_min_flickers": "Minimum flickers for an integration to be listed on its own (0 = never)",
           "digest_notify_service": "Digest notify service (empty = same as feedback)"
         }
       },

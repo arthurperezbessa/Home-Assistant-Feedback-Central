@@ -14,6 +14,7 @@ CONF_DIGEST_ENABLED = "digest_enabled"
 CONF_DIGEST_HOUR = "digest_hour"
 CONF_DIGEST_MINUTE = "digest_minute"
 CONF_DIGEST_MIN_MINUTES = "digest_min_minutes"
+CONF_DIGEST_MIN_FLICKERS = "digest_min_flickers"
 CONF_DIGEST_NOTIFY_SERVICE = "digest_notify_service"
 
 DEFAULT_DIGEST_ENABLED = True
@@ -22,6 +23,9 @@ DEFAULT_DIGEST_MINUTE = 30
 # Só entra no resumo a entidade que ficou indisponível por pelo menos este
 # tempo CONTÍNUO (uma única queda) nas últimas 24h.
 DEFAULT_DIGEST_MIN_MINUTES = 10
+# Integração SEM queda que passe o corte acima entra no resumo se a entidade
+# com mais flickers tiver pelo menos esta quantidade nas últimas 24h.
+DEFAULT_DIGEST_MIN_FLICKERS = 15
 # Acima disto o cliente é tratado como "sem contato" no resumo (horas).
 DIGEST_STALE_HOURS = 1
 
