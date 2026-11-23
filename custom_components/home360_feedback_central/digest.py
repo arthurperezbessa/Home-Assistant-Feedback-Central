@@ -67,7 +67,7 @@ def _monitor_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> list[str]:
 def _pior_queda(integ: dict, min_seconds: int) -> dict | None:
     """Entidade que mais tempo ficou fora em 24h, se passar o corte.
 
-    Usa `pior_queda_24h` (Entity Monitor >= 0.11, calculado sobre todas as
+    Usa `pior_queda_24h` (Entity Monitor >= 0.10.1, calculado sobre todas as
     entidades). Em clientes mais antigos cai para as entidades detalhadas,
     onde o corte é aplicado sobre o tempo somado — aproximação.
     """

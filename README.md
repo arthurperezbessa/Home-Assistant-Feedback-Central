@@ -111,7 +111,7 @@ Tuya · Luz Quarto 25m (1 queda)
   cliente).
 - Para testar sem esperar o horário, chame o serviço
   **`home360_feedback_central.send_daily_digest`**.
-- Com clientes em Entity Monitor < 0.11.0 o corte usa o tempo **somado** nas 24h
+- Com clientes em Entity Monitor < 0.10.1 o corte usa o tempo **somado** nas 24h
   (o dado da maior queda contínua ainda não é enviado por eles).
 
 Cards prontos (auto-descobrem os clientes):
