@@ -384,9 +384,40 @@ def _sanitize_window(raw) -> dict:
         "outages": _to_int(raw.get("outages")),
         "outage_downtime": _to_int(raw.get("outage_downtime")),
         "outage_downtime_fmt": _to_str(raw.get("outage_downtime_fmt"), 10),
+        # Maior queda CONTÍNUA da janela (Entity Monitor >= 0.10.1). É o que o
+        # resumo diário usa no corte — sem isto ele cai no tempo somado.
+        "longest_outage": _to_int(raw.get("longest_outage")),
+        "longest_outage_fmt": _to_str(raw.get("longest_outage_fmt"), 10),
         "flickers": _to_int(raw.get("flickers")),
         "flicker_downtime": _to_int(raw.get("flicker_downtime")),
         "flicker_downtime_fmt": _to_str(raw.get("flicker_downtime_fmt"), 10),
+    }
+
+
+def _sanitize_pior_queda(raw) -> dict | None:
+    """Entidade que mais tempo ficou fora em 24h, enviada pelo cliente."""
+    if not isinstance(raw, dict) or not raw.get("nome"):
+        return None
+    return {
+        "entity_id": _to_str(raw.get("entity_id")),
+        "nome": _to_str(raw.get("nome")),
+        "tempo_fora": _to_int(raw.get("tempo_fora")),
+        "tempo_fora_fmt": _to_str(raw.get("tempo_fora_fmt"), 10),
+        "maior_queda": _to_int(raw.get("maior_queda")),
+        "maior_queda_fmt": _to_str(raw.get("maior_queda_fmt"), 10),
+        "quedas": _to_int(raw.get("quedas")),
+        "caida_agora": bool(raw.get("caida_agora")),
+    }
+
+
+def _sanitize_pior_flicker(raw) -> dict | None:
+    """Entidade com mais flickers em 24h, enviada pelo cliente."""
+    if not isinstance(raw, dict) or not raw.get("nome"):
+        return None
+    return {
+        "entity_id": _to_str(raw.get("entity_id")),
+        "nome": _to_str(raw.get("nome")),
+        "flickers": _to_int(raw.get("flickers")),
     }
 
 
@@ -434,6 +465,14 @@ def _sanitize_estado(raw) -> dict | None:
                 "com_problema": _to_int(it.get("com_problema")),
                 "dia": _sanitize_window(it.get("dia")),
                 "semana": _sanitize_window(it.get("semana")),
+                # Piores das últimas 24h, sobre TODAS as entidades da
+                # integração (Entity Monitor >= 0.10.1).
+                "pior_queda_24h": _sanitize_pior_queda(
+                    it.get("pior_queda_24h")
+                ),
+                "pior_flicker_24h": _sanitize_pior_flicker(
+                    it.get("pior_flicker_24h")
+                ),
                 "entidades": entidades,
                 "entidades_omitidas": max(
                     0, _to_int(it.get("com_problema")) - len(entidades)
