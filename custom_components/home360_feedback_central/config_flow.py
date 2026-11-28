@@ -210,7 +210,10 @@ class Home360CentralOptionsFlow(OptionsFlow):
                 ): vol.All(vol.Coerce(int), vol.Range(min=0, max=1000)),
                 vol.Optional(
                     CONF_DIGEST_NOTIFY_SERVICE,
-                    default=cur[CONF_DIGEST_NOTIFY_SERVICE],
+                    description={
+                        "suggested_value": cur[CONF_DIGEST_NOTIFY_SERVICE]
+                    },
+                    default="",
                 ): str,
             }
         )
@@ -289,7 +292,9 @@ class Home360CentralOptionsFlow(OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Optional(
-                    CONF_NOTIFY_SERVICE, default=cur["notify_service"]
+                    CONF_NOTIFY_SERVICE,
+                    description={"suggested_value": cur["notify_service"]},
+                    default="",
                 ): str
             }
         )
